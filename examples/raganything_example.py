@@ -25,6 +25,10 @@ from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc, logger, set_verbose_debug
 from raganything import RAGAnything, RAGAnythingConfig
 
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=".env", override=False)
+
 
 def configure_logging():
     """Configure logging for the application"""
@@ -88,6 +92,7 @@ async def process_with_rag(
     api_key: str,
     base_url: str = None,
     working_dir: str = None,
+    parser: str = None,
 ):
     """
     Process document with RAGAnything
@@ -103,7 +108,8 @@ async def process_with_rag(
         # Create RAGAnything configuration
         config = RAGAnythingConfig(
             working_dir=working_dir or "./rag_storage",
-            mineru_parse_method="auto",
+            parser=parser,  # Parser selection: mineru or docling
+            parse_method="auto",  # Parse method: auto, ocr, or txt
             enable_image_processing=True,
             enable_table_processing=True,
             enable_equation_processing=True,
@@ -250,17 +256,26 @@ def main():
     )
     parser.add_argument(
         "--api-key",
-        default=os.getenv("OPENAI_API_KEY"),
-        help="OpenAI API key (defaults to OPENAI_API_KEY env var)",
+        default=os.getenv("LLM_BINDING_API_KEY"),
+        help="OpenAI API key (defaults to LLM_BINDING_API_KEY env var)",
     )
-    parser.add_argument("--base-url", help="Optional base URL for API")
+    parser.add_argument(
+        "--base-url",
+        default=os.getenv("LLM_BINDING_HOST"),
+        help="Optional base URL for API",
+    )
+    parser.add_argument(
+        "--parser",
+        default=os.getenv("PARSER", "mineru"),
+        help="Optional base URL for API",
+    )
 
     args = parser.parse_args()
 
     # Check if API key is provided
     if not args.api_key:
         logger.error("Error: OpenAI API key is required")
-        logger.error("Set OPENAI_API_KEY environment variable or use --api-key option")
+        logger.error("Set api key environment variable or use --api-key option")
         return
 
     # Create output directory if specified
@@ -270,7 +285,12 @@ def main():
     # Process with RAG
     asyncio.run(
         process_with_rag(
-            args.file_path, args.output, args.api_key, args.base_url, args.working_dir
+            args.file_path,
+            args.output,
+            args.api_key,
+            args.base_url,
+            args.working_dir,
+            args.parser,
         )
     )
 
