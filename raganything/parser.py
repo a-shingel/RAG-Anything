@@ -11,20 +11,14 @@ For Office documents (.doc, .docx, .ppt, .pptx), please convert them to PDF form
 
 from __future__ import annotations
 
-
-import json
 import argparse
 import base64
+import json
+import logging
 import subprocess
 import tempfile
-import logging
 from pathlib import Path
 from typing import (
-    Dict,
-    List,
-    Optional,
-    Union,
-    Tuple,
     Any,
     TypeVar,
 )
@@ -53,7 +47,7 @@ class Parser:
 
     @staticmethod
     def convert_office_to_pdf(
-        doc_path: Union[str, Path], output_dir: Optional[str] = None
+        doc_path: str | Path, output_dir: str | None = None
     ) -> Path:
         """
         Convert Office document (.doc, .docx, .ppt, .pptx, .xls, .xlsx) to PDF.
@@ -191,7 +185,7 @@ class Parser:
 
     @staticmethod
     def convert_text_to_pdf(
-        text_path: Union[str, Path], output_dir: Optional[str] = None
+        text_path: str | Path, output_dir: str | None = None
     ) -> Path:
         """
         Convert text file (.txt, .md) to PDF using ReportLab with full markdown support.
@@ -215,13 +209,13 @@ class Parser:
 
             # Read the text content
             try:
-                with open(text_path, "r", encoding="utf-8") as f:
+                with open(text_path, encoding="utf-8") as f:
                     text_content = f.read()
             except UnicodeDecodeError:
                 # Try with different encodings
                 for encoding in ["gbk", "latin-1", "cp1252"]:
                     try:
-                        with open(text_path, "r", encoding=encoding) as f:
+                        with open(text_path, encoding=encoding) as f:
                             text_content = f.read()
                         logging.info(f"Successfully read file with {encoding} encoding")
                         break
@@ -246,10 +240,10 @@ class Parser:
 
             try:
                 from reportlab.lib.pagesizes import A4
-                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
                 from reportlab.lib.units import inch
                 from reportlab.pdfbase import pdfmetrics
+                from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
                 # Create PDF document
                 doc = SimpleDocTemplate(
@@ -443,12 +437,12 @@ class Parser:
 
     def parse_pdf(
         self,
-        pdf_path: Union[str, Path],
-        output_dir: Optional[str] = None,
+        pdf_path: str | Path,
+        output_dir: str | None = None,
         method: str = "auto",
-        lang: Optional[str] = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Abstract method to parse PDF document.
         Must be implemented by subclasses.
@@ -467,11 +461,11 @@ class Parser:
 
     def parse_image(
         self,
-        image_path: Union[str, Path],
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        image_path: str | Path,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Abstract method to parse image document.
         Must be implemented by subclasses.
@@ -492,12 +486,12 @@ class Parser:
 
     def parse_document(
         self,
-        file_path: Union[str, Path],
+        file_path: str | Path,
         method: str = "auto",
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Abstract method to parse a document.
         Must be implemented by subclasses.
@@ -548,18 +542,18 @@ class MineruParser(Parser):
 
     @staticmethod
     def _run_mineru_command(
-        input_path: Union[str, Path],
-        output_dir: Union[str, Path],
+        input_path: str | Path,
+        output_dir: str | Path,
         method: str = "auto",
-        lang: Optional[str] = None,
-        backend: Optional[str] = None,
-        start_page: Optional[int] = None,
-        end_page: Optional[int] = None,
+        lang: str | None = None,
+        backend: str | None = None,
+        start_page: int | None = None,
+        end_page: int | None = None,
         formula: bool = True,
         table: bool = True,
-        device: Optional[str] = None,
-        source: Optional[str] = None,
-        vlm_url: Optional[str] = None,
+        device: str | None = None,
+        source: str | None = None,
+        vlm_url: str | None = None,
     ) -> None:
         """
         Run mineru command line tool
@@ -611,7 +605,7 @@ class MineruParser(Parser):
             # Prepare subprocess parameters to hide console window on Windows
             import platform
             import threading
-            from queue import Queue, Empty
+            from queue import Empty, Queue
 
             # Log the command being executed
             logging.info(f"Executing mineru command: {' '.join(cmd)}")
@@ -757,7 +751,7 @@ class MineruParser(Parser):
     @staticmethod
     def _read_output_files(
         output_dir: Path, file_stem: str, method: str = "auto"
-    ) -> Tuple[List[Dict[str, Any]], str]:
+    ) -> tuple[list[dict[str, Any]], str]:
         """
         Read the output files generated by mineru
 
@@ -783,7 +777,7 @@ class MineruParser(Parser):
         md_content = ""
         if md_file.exists():
             try:
-                with open(md_file, "r", encoding="utf-8") as f:
+                with open(md_file, encoding="utf-8") as f:
                     md_content = f.read()
             except Exception as e:
                 logging.warning(f"Could not read markdown file {md_file}: {e}")
@@ -792,7 +786,7 @@ class MineruParser(Parser):
         content_list = []
         if json_file.exists():
             try:
-                with open(json_file, "r", encoding="utf-8") as f:
+                with open(json_file, encoding="utf-8") as f:
                     content_list = json.load(f)
 
                 # Always fix relative paths in content_list to absolute paths
@@ -823,12 +817,12 @@ class MineruParser(Parser):
 
     def parse_pdf(
         self,
-        pdf_path: Union[str, Path],
-        output_dir: Optional[str] = None,
+        pdf_path: str | Path,
+        output_dir: str | None = None,
         method: str = "auto",
-        lang: Optional[str] = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse PDF document using MinerU 2.0
 
@@ -883,11 +877,11 @@ class MineruParser(Parser):
 
     def parse_image(
         self,
-        image_path: Union[str, Path],
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        image_path: str | Path,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse image document using MinerU 2.0
 
@@ -1030,11 +1024,11 @@ class MineruParser(Parser):
 
     def parse_office_doc(
         self,
-        doc_path: Union[str, Path],
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        doc_path: str | Path,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse office document by first converting to PDF, then parsing with MinerU 2.0
 
@@ -1067,11 +1061,11 @@ class MineruParser(Parser):
 
     def parse_text_file(
         self,
-        text_path: Union[str, Path],
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        text_path: str | Path,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse text file by first converting to PDF, then parsing with MinerU 2.0
 
@@ -1101,12 +1095,12 @@ class MineruParser(Parser):
 
     def parse_document(
         self,
-        file_path: Union[str, Path],
+        file_path: str | Path,
         method: str = "auto",
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse document using MinerU 2.0 based on file extension
 
@@ -1200,12 +1194,12 @@ class DoclingParser(Parser):
 
     def parse_pdf(
         self,
-        pdf_path: Union[str, Path],
-        output_dir: Optional[str] = None,
+        pdf_path: str | Path,
+        output_dir: str | None = None,
         method: str = "auto",
-        lang: Optional[str] = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse PDF document using Docling
 
@@ -1255,12 +1249,12 @@ class DoclingParser(Parser):
 
     def parse_document(
         self,
-        file_path: Union[str, Path],
+        file_path: str | Path,
         method: str = "auto",
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse document using Docling based on file extension
 
@@ -1298,8 +1292,8 @@ class DoclingParser(Parser):
 
     def _run_docling_command(
         self,
-        input_path: Union[str, Path],
-        output_dir: Union[str, Path],
+        input_path: str | Path,
+        output_dir: str | Path,
         file_stem: str,
         **kwargs,
     ) -> None:
@@ -1370,7 +1364,7 @@ class DoclingParser(Parser):
         self,
         output_dir: Path,
         file_stem: str,
-    ) -> Tuple[List[Dict[str, Any]], str]:
+    ) -> tuple[list[dict[str, Any]], str]:
         """
         Read the output files generated by docling and convert to MinerU format
 
@@ -1390,7 +1384,7 @@ class DoclingParser(Parser):
         md_content = ""
         if md_file.exists():
             try:
-                with open(md_file, "r", encoding="utf-8") as f:
+                with open(md_file, encoding="utf-8") as f:
                     md_content = f.read()
             except Exception as e:
                 logging.warning(f"Could not read markdown file {md_file}: {e}")
@@ -1399,7 +1393,7 @@ class DoclingParser(Parser):
         content_list = []
         if json_file.exists():
             try:
-                with open(json_file, "r", encoding="utf-8") as f:
+                with open(json_file, encoding="utf-8") as f:
                     docling_content = json.load(f)
                     # Convert docling format to minerU format
                     content_list = self.read_from_block_recursive(
@@ -1421,8 +1415,8 @@ class DoclingParser(Parser):
         output_dir: Path,
         cnt: int,
         num: str,
-        docling_content: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        docling_content: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         content_list = []
         if not block.get("children"):
             cnt += 1
@@ -1454,7 +1448,7 @@ class DoclingParser(Parser):
 
     def read_from_block(
         self, block, type: str, output_dir: Path, cnt: int, num: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if type == "texts":
             if block["label"] == "formula":
                 return {
@@ -1514,11 +1508,11 @@ class DoclingParser(Parser):
 
     def parse_office_doc(
         self,
-        doc_path: Union[str, Path],
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        doc_path: str | Path,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse office document directly using Docling
 
@@ -1572,11 +1566,11 @@ class DoclingParser(Parser):
 
     def parse_html(
         self,
-        html_path: Union[str, Path],
-        output_dir: Optional[str] = None,
-        lang: Optional[str] = None,
+        html_path: str | Path,
+        output_dir: str | None = None,
+        lang: str | None = None,
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Parse HTML document using Docling
 
@@ -1660,6 +1654,496 @@ class DoclingParser(Parser):
                 "Please ensure it is installed correctly."
             )
             return False
+
+
+class SimpleTextParser(Parser):
+    """
+    Fast text parser for plain text and markdown files (.txt, .md).
+
+    Processes text files directly without conversion to PDF, providing
+    significantly faster processing for simple text documents.
+    """
+
+    def __init__(self) -> None:
+        """Initialize SimpleTextParser."""
+        super().__init__()
+
+    def parse_document(
+        self,
+        file_path: str | Path,
+        method: str = "auto",
+        output_dir: str | None = None,
+        lang: str | None = None,
+        **kwargs,
+    ) -> list[dict[str, Any]]:
+        """
+        Parse document using SimpleTextParser based on file extension.
+
+        Args:
+            file_path: Path to the file to be parsed
+            method: Parsing method (ignored for text files)
+            output_dir: Output directory path (optional)
+            lang: Document language (ignored for text files)
+            **kwargs: Additional parameters
+
+        Returns:
+            List[Dict[str, Any]]: List of content blocks
+
+        Raises:
+            FileNotFoundError: If the file does not exist
+            ValueError: If the file extension is not supported
+        """
+        # Convert to Path object
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File does not exist: {file_path}")
+
+        # Get file extension
+        ext = file_path.suffix.lower()
+
+        # Route to appropriate parser based on file type
+        if ext == ".md":
+            return self._parse_markdown_direct(file_path, output_dir, **kwargs)
+        elif ext == ".txt":
+            return self._parse_text_direct(file_path, output_dir, **kwargs)
+        else:
+            raise ValueError(
+                f"SimpleTextParser only supports .txt and .md files, got: {ext}"
+            )
+
+    def _parse_markdown_direct(
+        self,
+        md_path: Path,
+        output_dir: str | None = None,
+        **kwargs,
+    ) -> list[dict[str, Any]]:
+        """
+        Parse markdown file directly without PDF conversion.
+
+        Args:
+            md_path: Path to the markdown file
+            output_dir: Output directory (optional, for compatibility)
+            **kwargs: Additional parameters
+
+        Returns:
+            List[Dict[str, Any]]: List of content blocks
+        """
+        try:
+            logging.info(f"Parsing markdown file directly: {md_path.name}")
+
+            # Read the markdown content
+            content = self._read_text_file(md_path)
+
+            # Parse markdown structure
+            content_blocks = self._parse_markdown_content(content, md_path.stem)
+
+            logging.info(
+                f"Successfully parsed {len(content_blocks)} content blocks from markdown"
+            )
+            return content_blocks
+
+        except Exception as e:
+            logging.error(f"Error parsing markdown file {md_path}: {str(e)}")
+            raise
+
+    def _parse_text_direct(
+        self,
+        txt_path: Path,
+        output_dir: str | None = None,
+        **kwargs,
+    ) -> list[dict[str, Any]]:
+        """
+        Parse plain text file directly.
+
+        Args:
+            txt_path: Path to the text file
+            output_dir: Output directory (optional, for compatibility)
+            **kwargs: Additional parameters
+
+        Returns:
+            List[Dict[str, Any]]: List of content blocks
+        """
+        try:
+            logging.info(f"Parsing text file directly: {txt_path.name}")
+
+            # Read the text content
+            content = self._read_text_file(txt_path)
+
+            # Parse text content into blocks
+            content_blocks = self._parse_text_content(content, txt_path.stem)
+
+            logging.info(
+                f"Successfully parsed {len(content_blocks)} content blocks from text"
+            )
+            return content_blocks
+
+        except Exception as e:
+            logging.error(f"Error parsing text file {txt_path}: {str(e)}")
+            raise
+
+    def _read_text_file(self, file_path: Path) -> str:
+        """
+        Read text file with multiple encoding fallbacks.
+
+        Args:
+            file_path: Path to the text file
+
+        Returns:
+            str: File content
+
+        Raises:
+            RuntimeError: If file cannot be decoded with any supported encoding
+        """
+        encodings_to_try = ["utf-8", "utf-8-sig", "gbk", "latin-1", "cp1252"]
+
+        for encoding in encodings_to_try:
+            try:
+                with open(file_path, encoding=encoding) as f:
+                    content = f.read()
+
+                if encoding != "utf-8":
+                    logging.info(f"Successfully read file with {encoding} encoding")
+
+                return content
+
+            except UnicodeDecodeError:
+                continue
+
+        # If all encodings fail
+        raise RuntimeError(
+            f"Could not decode text file {file_path.name} with any supported encoding: "
+            f"{', '.join(encodings_to_try)}"
+        )
+
+    def _parse_markdown_content(
+        self, content: str, file_stem: str
+    ) -> list[dict[str, Any]]:
+        """
+        Parse markdown content into structured blocks.
+
+        Args:
+            content: Raw markdown content
+            file_stem: File name without extension (for metadata)
+
+        Returns:
+            List[Dict[str, Any]]: List of content blocks
+        """
+        blocks = []
+        lines = content.split("\n")
+        current_block = []
+        current_type = "text"
+        block_index = 0
+        line_number = 0
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            line_number += 1
+            stripped_line = line.strip()
+
+            # Skip empty lines but track them for paragraph breaks
+            if not stripped_line:
+                if current_block:
+                    # Finish current block
+                    block_content = "\n".join(current_block).strip()
+                    if block_content:
+                        blocks.append(
+                            self._create_content_block(
+                                current_type,
+                                block_content,
+                                block_index,
+                                file_stem,
+                                line_number - len(current_block),
+                            )
+                        )
+                        block_index += 1
+                    current_block = []
+                    current_type = "text"
+                i += 1
+                continue
+
+            # Detect headers
+            if stripped_line.startswith("#"):
+                # Finish previous block if any
+                if current_block:
+                    block_content = "\n".join(current_block).strip()
+                    if block_content:
+                        blocks.append(
+                            self._create_content_block(
+                                current_type,
+                                block_content,
+                                block_index,
+                                file_stem,
+                                line_number - len(current_block),
+                            )
+                        )
+                        block_index += 1
+
+                # Parse header
+                level = len(stripped_line) - len(stripped_line.lstrip("#"))
+                header_text = stripped_line.lstrip("#").strip()
+
+                if header_text:
+                    blocks.append(
+                        self._create_header_block(
+                            header_text, level, block_index, file_stem, line_number
+                        )
+                    )
+                    block_index += 1
+
+                current_block = []
+                current_type = "text"
+
+            # Detect code blocks
+            elif stripped_line.startswith("```"):
+                # Finish previous block if any
+                if current_block:
+                    block_content = "\n".join(current_block).strip()
+                    if block_content:
+                        blocks.append(
+                            self._create_content_block(
+                                current_type,
+                                block_content,
+                                block_index,
+                                file_stem,
+                                line_number - len(current_block),
+                            )
+                        )
+                        block_index += 1
+
+                # Parse code block
+                code_lang = stripped_line[3:].strip()
+                code_lines = []
+                i += 1
+                code_start_line = line_number + 1
+
+                while i < len(lines):
+                    line_number += 1
+                    if lines[i].strip().startswith("```"):
+                        break
+                    code_lines.append(lines[i])
+                    i += 1
+
+                code_content = "\n".join(code_lines)
+                if code_content.strip():
+                    blocks.append(
+                        self._create_code_block(
+                            code_content,
+                            code_lang,
+                            block_index,
+                            file_stem,
+                            code_start_line,
+                        )
+                    )
+                    block_index += 1
+
+                current_block = []
+                current_type = "text"
+
+            # Detect list items
+            elif stripped_line.startswith(("- ", "* ", "+ ")) or (
+                stripped_line
+                and stripped_line[0].isdigit()
+                and ". " in stripped_line[:5]
+            ):
+                if current_type != "list":
+                    # Finish previous block if it's not a list
+                    if current_block:
+                        block_content = "\n".join(current_block).strip()
+                        if block_content:
+                            blocks.append(
+                                self._create_content_block(
+                                    current_type,
+                                    block_content,
+                                    block_index,
+                                    file_stem,
+                                    line_number - len(current_block),
+                                )
+                            )
+                            block_index += 1
+                        current_block = []
+                    current_type = "list"
+
+                current_block.append(line)
+
+            else:
+                # Regular text
+                if current_type != "text":
+                    # Finish previous block if it's not text
+                    if current_block:
+                        block_content = "\n".join(current_block).strip()
+                        if block_content:
+                            blocks.append(
+                                self._create_content_block(
+                                    current_type,
+                                    block_content,
+                                    block_index,
+                                    file_stem,
+                                    line_number - len(current_block),
+                                )
+                            )
+                            block_index += 1
+                        current_block = []
+                    current_type = "text"
+
+                current_block.append(line)
+
+            i += 1
+
+        # Handle remaining content
+        if current_block:
+            block_content = "\n".join(current_block).strip()
+            if block_content:
+                blocks.append(
+                    self._create_content_block(
+                        current_type,
+                        block_content,
+                        block_index,
+                        file_stem,
+                        line_number - len(current_block),
+                    )
+                )
+
+        return blocks
+
+    def _parse_text_content(self, content: str, file_stem: str) -> list[dict[str, Any]]:
+        """
+        Parse plain text content into structured blocks.
+
+        Args:
+            content: Raw text content
+            file_stem: File name without extension (for metadata)
+
+        Returns:
+            List[Dict[str, Any]]: List of content blocks
+        """
+        blocks = []
+
+        # Split content into paragraphs (separated by empty lines)
+        paragraphs = []
+        current_paragraph = []
+
+        for line in content.split("\n"):
+            stripped_line = line.strip()
+            if stripped_line:
+                current_paragraph.append(line)
+            else:
+                if current_paragraph:
+                    paragraphs.append("\n".join(current_paragraph))
+                    current_paragraph = []
+
+        # Don't forget the last paragraph
+        if current_paragraph:
+            paragraphs.append("\n".join(current_paragraph))
+
+        # Convert paragraphs to blocks
+        for i, paragraph in enumerate(paragraphs):
+            if paragraph.strip():
+                blocks.append(
+                    self._create_content_block(
+                        "text", paragraph.strip(), i, file_stem, 0
+                    )
+                )
+
+        return blocks
+
+    def _create_content_block(
+        self,
+        block_type: str,
+        content: str,
+        index: int,
+        file_stem: str,
+        line_number: int,
+    ) -> dict[str, Any]:
+        """Create a standard content block in LightRAG-compatible format."""
+        # Use the correct field name for LightRAG compatibility
+        if block_type == "text":
+            return {
+                "type": "text",
+                "text": content,  # LightRAG expects 'text' field for text content
+                "page_idx": 0,  # Default page index
+                "metadata": {
+                    "block_index": index,
+                    "source_file": file_stem,
+                    "line_start": line_number,
+                    "parser": "SimpleTextParser",
+                },
+            }
+        elif block_type == "list":
+            return {
+                "type": "text",  # Lists are treated as text in LightRAG
+                "text": content,
+                "page_idx": 0,
+                "metadata": {
+                    "block_index": index,
+                    "source_file": file_stem,
+                    "line_start": line_number,
+                    "content_type": "list",
+                    "parser": "SimpleTextParser",
+                },
+            }
+        else:
+            # For code and other types, also use text format but preserve type info
+            return {
+                "type": "text",
+                "text": content,
+                "page_idx": 0,
+                "metadata": {
+                    "block_index": index,
+                    "source_file": file_stem,
+                    "line_start": line_number,
+                    "content_type": block_type,
+                    "parser": "SimpleTextParser",
+                },
+            }
+
+    def _create_header_block(
+        self, content: str, level: int, index: int, file_stem: str, line_number: int
+    ) -> dict[str, Any]:
+        """Create a header block with level metadata in LightRAG-compatible format."""
+        return {
+            "type": "text",  # Headers are treated as text in LightRAG
+            "text": content,
+            "page_idx": 0,
+            "metadata": {
+                "block_index": index,
+                "source_file": file_stem,
+                "line_start": line_number,
+                "content_type": "header",
+                "header_level": level,
+                "parser": "SimpleTextParser",
+            },
+        }
+
+    def _create_code_block(
+        self, content: str, language: str, index: int, file_stem: str, line_number: int
+    ) -> dict[str, Any]:
+        """Create a code block with language metadata in LightRAG-compatible format."""
+        return {
+            "type": "text",  # Code blocks are treated as text in LightRAG
+            "text": content,
+            "page_idx": 0,
+            "metadata": {
+                "block_index": index,
+                "source_file": file_stem,
+                "line_start": line_number,
+                "content_type": "code",
+                "language": language or "text",
+                "parser": "SimpleTextParser",
+            },
+        }
+
+    def check_installation(self) -> bool:
+        """
+        Check if SimpleTextParser can be used.
+
+        Since SimpleTextParser only uses standard library,
+        it's always available.
+
+        Returns:
+            bool: Always True for SimpleTextParser
+        """
+        return True
 
 
 def main():

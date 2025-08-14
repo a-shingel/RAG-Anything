@@ -14,7 +14,7 @@ from typing import Any
 
 from lightrag.utils import compute_mdhash_id
 
-from raganything.parser import DoclingParser, MineruParser
+from raganything.parser import DoclingParser, MineruParser, SimpleTextParser
 from raganything.utils import (
     get_processor_for_type,
     insert_text_content,
@@ -326,6 +326,9 @@ class ProcessorMixin:
             self.logger.info(
                 f"Using {self.config.parser} parser with method: {parse_method}"
             )
+            print(
+                f"[DEBUG] Will use parser: {self.config.parser}, method: {parse_method}"
+            )
 
             if ext in [".pdf"]:
                 self.logger.info("Detected PDF file, using parser for PDF...")
@@ -422,8 +425,28 @@ class ProcessorMixin:
                     if isinstance(content_list, list)
                     else None,
                 )
+            elif ext in [".txt", ".md"]:
+                print(
+                    f"[DEBUG] ✅ MD/TXT file detected! Using SimpleTextParser for {file_path}"
+                )
+                self.logger.info(
+                    "Detected text file, using fast SimpleTextParser for direct processing..."
+                )
+                # Use SimpleTextParser for fast direct text processing
+                content_list = SimpleTextParser().parse_document(
+                    file_path=file_path,
+                    method=parse_method,
+                    output_dir=output_dir,
+                    **kwargs,
+                )
+                print(
+                    f"[DEBUG] ✅ SimpleTextParser returned {len(content_list)} blocks"
+                )
             else:
                 # For other or unknown formats, use generic parser
+                print(
+                    f"[DEBUG] ❌ File {file_path} with ext {ext} going to GENERIC parser!"
+                )
                 self.logger.info(
                     f"Using generic parser for {ext} file (method={parse_method})..."
                 )
