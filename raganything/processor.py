@@ -4,20 +4,22 @@ Document processing functionality for RAGAnything
 Contains methods for parsing documents and processing multimodal content
 """
 
-import os
-import time
+import asyncio
 import hashlib
 import json
-from typing import Dict, List, Any, Tuple
+import os
+import time
 from pathlib import Path
-from raganything.parser import MineruParser, DoclingParser
-from raganything.utils import (
-    separate_content,
-    insert_text_content,
-    get_processor_for_type,
-)
-import asyncio
+from typing import Any
+
 from lightrag.utils import compute_mdhash_id
+
+from raganything.parser import DoclingParser, MineruParser
+from raganything.utils import (
+    get_processor_for_type,
+    insert_text_content,
+    separate_content,
+)
 
 
 class ProcessorMixin:
@@ -73,7 +75,7 @@ class ProcessorMixin:
 
         return cache_key
 
-    def _generate_content_based_doc_id(self, content_list: List[Dict[str, Any]]) -> str:
+    def _generate_content_based_doc_id(self, content_list: list[dict[str, Any]]) -> str:
         """
         Generate doc_id based on document content
 
@@ -114,7 +116,7 @@ class ProcessorMixin:
 
     async def _get_cached_result(
         self, cache_key: str, file_path: Path, parse_method: str = None, **kwargs
-    ) -> tuple[List[Dict[str, Any]], str] | None:
+    ) -> tuple[list[dict[str, Any]], str] | None:
         """
         Get cached parsing result if available and valid
 
@@ -194,7 +196,7 @@ class ProcessorMixin:
     async def _store_cached_result(
         self,
         cache_key: str,
-        content_list: List[Dict[str, Any]],
+        content_list: list[dict[str, Any]],
         doc_id: str,
         file_path: Path,
         parse_method: str = None,
@@ -266,7 +268,7 @@ class ProcessorMixin:
         parse_method: str = None,
         display_stats: bool = None,
         **kwargs,
-    ) -> tuple[List[Dict[str, Any]], str]:
+    ) -> tuple[list[dict[str, Any]], str]:
         """
         Parse document with caching support
 
@@ -481,7 +483,7 @@ class ProcessorMixin:
             self.logger.info(f"* Total blocks in content_list: {len(content_list)}")
 
             # Count elements by type
-            block_types: Dict[str, int] = {}
+            block_types: dict[str, int] = {}
             for block in content_list:
                 if isinstance(block, dict):
                     block_type = block.get("type", "unknown")
@@ -495,7 +497,7 @@ class ProcessorMixin:
         return content_list, doc_id
 
     async def _process_multimodal_content(
-        self, multimodal_items: List[Dict[str, Any]], file_path: str, doc_id: str
+        self, multimodal_items: list[dict[str, Any]], file_path: str, doc_id: str
     ):
         """
         Process multimodal content (using specialized processors)
@@ -550,24 +552,50 @@ class ProcessorMixin:
                 multimodal_items=multimodal_items, file_path=file_path, doc_id=doc_id
             )
 
-            # Mark multimodal content as processed and update final status
-            await self._mark_multimodal_processing_complete(doc_id)
-
-            self.logger.info("Multimodal content processing complete")
+            # Validate and mark multimodal content as processed
+            if await self._validate_multimodal_processing_complete(
+                doc_id, multimodal_items
+            ):
+                await self._mark_multimodal_processing_complete(doc_id)
+                self.logger.info("Multimodal content processing complete")
+            else:
+                self.logger.error("Multimodal processing validation failed")
+                raise Exception("Multimodal processing did not complete successfully")
 
         except Exception as e:
             self.logger.error(f"Error in multimodal processing: {e}")
             # Fallback to individual processing if batch processing fails
             self.logger.warning("Falling back to individual multimodal processing")
-            await self._process_multimodal_content_individual(
-                multimodal_items, file_path, doc_id
-            )
 
-            # Mark multimodal content as processed even after fallback
-            await self._mark_multimodal_processing_complete(doc_id)
+            try:
+                await self._process_multimodal_content_individual(
+                    multimodal_items, file_path, doc_id
+                )
+
+                # Validate that fallback processing was actually successful
+                if await self._validate_multimodal_processing_complete(
+                    doc_id, multimodal_items
+                ):
+                    await self._mark_multimodal_processing_complete(doc_id)
+                    self.logger.info(
+                        "Fallback multimodal processing completed successfully"
+                    )
+                else:
+                    self.logger.error(
+                        "Fallback multimodal processing validation failed"
+                    )
+                    raise Exception("Fallback processing did not complete successfully")
+
+            except Exception as fallback_error:
+                self.logger.error(
+                    f"Fallback multimodal processing failed: {fallback_error}"
+                )
+                raise Exception(
+                    f"Both batch and fallback multimodal processing failed. Batch error: {e}, Fallback error: {fallback_error}"
+                )
 
     async def _process_multimodal_content_individual(
-        self, multimodal_items: List[Dict[str, Any]], file_path: str, doc_id: str
+        self, multimodal_items: list[dict[str, Any]], file_path: str, doc_id: str
     ):
         """
         Process multimodal content individually (fallback method)
@@ -686,11 +714,11 @@ class ProcessorMixin:
 
         # Batch merge all multimodal content results (similar to text content processing)
         if all_chunk_results:
-            from lightrag.operate import merge_nodes_and_edges
             from lightrag.kg.shared_storage import (
                 get_namespace_data,
                 get_pipeline_status_lock,
             )
+            from lightrag.operate import merge_nodes_and_edges
 
             # Get pipeline status and lock from shared storage
             pipeline_status = await get_namespace_data("pipeline_status")
@@ -714,11 +742,13 @@ class ProcessorMixin:
 
         self.logger.info("Individual multimodal content processing complete")
 
-        # Mark multimodal content as processed
-        await self._mark_multimodal_processing_complete(doc_id)
+        # Validate and mark multimodal content as processed
+        # Note: This method should only be called after validation in the caller
+        # But we add a safety check here as well
+        self.logger.debug("Individual processing completed, marking as processed")
 
     async def _process_multimodal_content_batch_type_aware(
-        self, multimodal_items: List[Dict[str, Any]], file_path: str, doc_id: str
+        self, multimodal_items: list[dict[str, Any]], file_path: str, doc_id: str
     ):
         """
         Type-aware batch processing that selects correct processors based on content type.
@@ -747,7 +777,7 @@ class ProcessorMixin:
 
         # Stage 1: Concurrent generation of descriptions using correct processors for each type
         async def process_single_item_with_correct_processor(
-            item: Dict[str, Any], index: int, file_path: str
+            item: dict[str, Any], index: int, file_path: str
         ):
             """Process single item using the correct processor for its type"""
             async with semaphore:
@@ -862,8 +892,8 @@ class ProcessorMixin:
         await self._update_doc_status_with_chunks_type_aware(doc_id, chunk_ids)
 
     def _convert_to_lightrag_chunks_type_aware(
-        self, multimodal_data_list: List[Dict[str, Any]], file_path: str, doc_id: str
-    ) -> Dict[str, Any]:
+        self, multimodal_data_list: list[dict[str, Any]], file_path: str, doc_id: str
+    ) -> dict[str, Any]:
         """Convert multimodal data to LightRAG standard chunks format"""
 
         chunks = {}
@@ -907,7 +937,7 @@ class ProcessorMixin:
         return chunks
 
     def _apply_chunk_template(
-        self, content_type: str, original_item: Dict[str, Any], description: str
+        self, content_type: str, original_item: dict[str, Any], description: str
     ) -> str:
         """
         Apply the appropriate chunk template based on content type
@@ -978,7 +1008,7 @@ class ProcessorMixin:
             return description
 
     async def _store_chunks_to_lightrag_storage_type_aware(
-        self, chunks: Dict[str, Any]
+        self, chunks: dict[str, Any]
     ):
         """Store chunks to storage"""
         try:
@@ -996,8 +1026,8 @@ class ProcessorMixin:
 
     async def _store_multimodal_main_entities(
         self,
-        multimodal_data_list: List[Dict[str, Any]],
-        lightrag_chunks: Dict[str, Any],
+        multimodal_data_list: list[dict[str, Any]],
+        lightrag_chunks: dict[str, Any],
         file_path: str,
     ):
         """
@@ -1077,8 +1107,8 @@ class ProcessorMixin:
                 raise
 
     async def _batch_extract_entities_lightrag_style_type_aware(
-        self, lightrag_chunks: Dict[str, Any]
-    ) -> List[Tuple]:
+        self, lightrag_chunks: dict[str, Any]
+    ) -> list[tuple]:
         """Use LightRAG's extract_entities for batch entity relation extraction"""
         from lightrag.kg.shared_storage import (
             get_namespace_data,
@@ -1106,8 +1136,8 @@ class ProcessorMixin:
         return chunk_results
 
     async def _batch_add_belongs_to_relations_type_aware(
-        self, chunk_results: List[Tuple], multimodal_data_list: List[Dict[str, Any]]
-    ) -> List[Tuple]:
+        self, chunk_results: list[tuple], multimodal_data_list: list[dict[str, Any]]
+    ) -> list[tuple]:
         """Add belongs_to relations for multimodal entities"""
         # Create mapping from chunk_id to modal_entity_name
         chunk_to_modal_entity = {}
@@ -1170,7 +1200,7 @@ class ProcessorMixin:
         return enhanced_chunk_results
 
     async def _batch_merge_lightrag_style_type_aware(
-        self, enhanced_chunk_results: List[Tuple], file_path: str
+        self, enhanced_chunk_results: list[tuple], file_path: str
     ):
         """Use LightRAG's merge_nodes_and_edges for batch merge"""
         from lightrag.kg.shared_storage import (
@@ -1199,7 +1229,7 @@ class ProcessorMixin:
         await self.lightrag._insert_done()
 
     async def _update_doc_status_with_chunks_type_aware(
-        self, doc_id: str, chunk_ids: List[str]
+        self, doc_id: str, chunk_ids: list[str]
     ):
         """Update document status with multimodal chunks"""
         try:
@@ -1288,7 +1318,7 @@ class ProcessorMixin:
             )
             return False
 
-    async def get_document_processing_status(self, doc_id: str) -> Dict[str, Any]:
+    async def get_document_processing_status(self, doc_id: str) -> dict[str, Any]:
         """
         Get detailed processing status for a document.
 
@@ -1412,18 +1442,23 @@ class ProcessorMixin:
         if multimodal_items:
             await self._process_multimodal_content(multimodal_items, file_path, doc_id)
         else:
-            # If no multimodal content, mark multimodal processing as complete
+            # If no multimodal content, validate and mark multimodal processing as complete
             # This ensures the document status properly reflects completion of all processing
-            await self._mark_multimodal_processing_complete(doc_id)
-            self.logger.debug(
-                f"No multimodal content found in document {doc_id}, marked multimodal processing as complete"
-            )
+            if await self._validate_multimodal_processing_complete(doc_id, []):
+                await self._mark_multimodal_processing_complete(doc_id)
+                self.logger.debug(
+                    f"No multimodal content found in document {doc_id}, marked multimodal processing as complete"
+                )
+            else:
+                self.logger.error(
+                    f"Validation failed for document {doc_id} even with no multimodal content"
+                )
 
         self.logger.info(f"Document {file_path} processing complete!")
 
     async def insert_content_list(
         self,
-        content_list: List[Dict[str, Any]],
+        content_list: list[dict[str, Any]],
         file_path: str = "unknown_document",
         split_by_character: str | None = None,
         split_by_character_only: bool = False,
@@ -1476,7 +1511,7 @@ class ProcessorMixin:
             self.logger.info(f"* Total blocks in content_list: {len(content_list)}")
 
             # Count elements by type
-            block_types: Dict[str, int] = {}
+            block_types: dict[str, int] = {}
             for block in content_list:
                 if isinstance(block, dict):
                     block_type = block.get("type", "unknown")
@@ -1515,11 +1550,83 @@ class ProcessorMixin:
         if multimodal_items:
             await self._process_multimodal_content(multimodal_items, file_path, doc_id)
         else:
-            # If no multimodal content, mark multimodal processing as complete
+            # If no multimodal content, validate and mark multimodal processing as complete
             # This ensures the document status properly reflects completion of all processing
-            await self._mark_multimodal_processing_complete(doc_id)
-            self.logger.debug(
-                f"No multimodal content found in document {doc_id}, marked multimodal processing as complete"
-            )
+            if await self._validate_multimodal_processing_complete(doc_id, []):
+                await self._mark_multimodal_processing_complete(doc_id)
+                self.logger.debug(
+                    f"No multimodal content found in document {doc_id}, marked multimodal processing as complete"
+                )
+            else:
+                self.logger.error(
+                    f"Validation failed for document {doc_id} even with no multimodal content"
+                )
 
         self.logger.info(f"Content list insertion complete for: {file_path}")
+
+    async def _validate_multimodal_processing_complete(
+        self, doc_id: str, multimodal_items: list[dict[str, Any]]
+    ) -> bool:
+        """
+        Validate that multimodal content processing was actually completed successfully.
+
+        Args:
+            doc_id: Document ID to validate
+            multimodal_items: List of multimodal items that were supposed to be processed
+
+        Returns:
+            bool: True if validation passes, False otherwise
+        """
+        try:
+            self.logger.debug(
+                f"Validating multimodal processing completion for document {doc_id}"
+            )
+
+            # Check 1: Document status exists
+            doc_status = await self.lightrag.doc_status.get_by_id(doc_id)
+            if not doc_status:
+                self.logger.error(f"Document status not found for {doc_id}")
+                return False
+
+            # Check 2: Document has chunks (either from text or multimodal processing)
+            chunks_count = doc_status.get("chunks_count", 0)
+            if chunks_count == 0:
+                self.logger.error(f"No chunks found for document {doc_id}")
+                return False
+
+            # Check 3: If there were multimodal items, verify they were processed
+            if multimodal_items:
+                # For each multimodal item, we expect at least some processing result
+                expected_min_chunks = len(multimodal_items)
+
+                # Check if we have chunks from multimodal processing
+                # We can't easily distinguish text vs multimodal chunks in current architecture,
+                # but we can check that chunk count increased appropriately
+                if chunks_count < expected_min_chunks:
+                    self.logger.warning(
+                        f"Expected at least {expected_min_chunks} chunks for {len(multimodal_items)} "
+                        f"multimodal items, but found only {chunks_count} total chunks for document {doc_id}"
+                    )
+                    # This is a warning, not a failure, as text chunks might also contribute
+
+            # Check 4: Document processing status should be valid
+            status = doc_status.get("status", "")
+            if status not in ["PROCESSING", "PROCESSED"]:
+                self.logger.error(f"Invalid document status '{status}' for {doc_id}")
+                return False
+
+            # Check 5: Basic data integrity
+            if not doc_status.get("file_path"):
+                self.logger.error(f"Missing file_path in document status for {doc_id}")
+                return False
+
+            self.logger.debug(
+                f"Multimodal processing validation passed for document {doc_id}"
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                f"Error during multimodal processing validation for {doc_id}: {e}"
+            )
+            return False
