@@ -42,8 +42,8 @@ from lightrag.utils import logger
 
 
 def separate_content(
-    content_list: List[Dict[str, Any]],
-) -> Tuple[str, List[Dict[str, Any]]]:
+    content_list: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
     """
     Separate text content and multimodal content
 
@@ -53,23 +53,37 @@ def separate_content(
     Returns:
         (text_content, multimodal_items): Pure text content and multimodal items list
     """
+    # DEBUG: Log input data structure
+    print(f"[DEBUG] separate_content received {len(content_list)} items")
+    if content_list:
+        print(f"[DEBUG] First item structure: {content_list[0]}")
+
     text_parts = []
     multimodal_items = []
 
-    for item in content_list:
+    for i, item in enumerate(content_list):
         content_type = item.get("type", "text")
+        print(f"[DEBUG] Item {i}: type='{content_type}', keys={list(item.keys())}")
 
         if content_type == "text":
             # Text content
             text = item.get("text", "")
+            print(
+                f"[DEBUG] Text item {i}: text_length={len(text)}, preview='{text[:50]}...'"
+            )
             if text.strip():
                 text_parts.append(text)
+            else:
+                print(f"[DEBUG] WARNING: Text item {i} is empty or whitespace-only!")
         else:
             # Multimodal content (image, table, equation, etc.)
             multimodal_items.append(item)
 
     # Merge all text content
     text_content = "\n\n".join(text_parts)
+    print(
+        f"[DEBUG] Final text_content length: {len(text_content)}, text_parts count: {len(text_parts)}"
+    )
 
     logger.info("Content separation complete:")
     logger.info(f"  - Text content length: {len(text_content)} characters")
@@ -193,6 +207,19 @@ async def insert_text_content(
     """
     logger.info("Starting text content insertion into LightRAG...")
 
+    # DEBUG: Log what's being inserted
+    print("[DEBUG] insert_text_content called with:")
+    print(f"  - input type: {type(input)}")
+    print(
+        f"  - input length: {len(input) if isinstance(input, str) else len(input) if isinstance(input, list) else 'N/A'}"
+    )
+    if isinstance(input, str):
+        print(f"  - input preview: '{input[:100]}...'")
+    elif isinstance(input, list) and input:
+        print(f"  - first item preview: '{input[0][:100] if input[0] else 'EMPTY'}...'")
+    print(f"  - file_paths: {file_paths}")
+    print(f"  - ids: {ids}")
+
     # Use LightRAG's insert method with all parameters
     await lightrag.ainsert(
         input=input,
@@ -205,7 +232,7 @@ async def insert_text_content(
     logger.info("Text content insertion complete")
 
 
-def get_processor_for_type(modal_processors: Dict[str, Any], content_type: str):
+def get_processor_for_type(modal_processors: dict[str, Any], content_type: str):
     """
     Get appropriate processor based on content type
 
@@ -228,7 +255,7 @@ def get_processor_for_type(modal_processors: Dict[str, Any], content_type: str):
         return modal_processors.get("generic")
 
 
-def get_processor_supports(proc_type: str) -> List[str]:
+def get_processor_supports(proc_type: str) -> list[str]:
     """Get processor supported features"""
     supports_map = {
         "image": [

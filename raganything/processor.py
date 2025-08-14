@@ -1440,6 +1440,16 @@ class ProcessorMixin:
         # Step 2: Separate text and multimodal content
         text_content, multimodal_items = separate_content(content_list)
 
+        # DEBUG: Log separation results
+        print("[DEBUG] After separate_content:")
+        print(f"  - text_content length: {len(text_content)}")
+        print(f"  - text_content.strip() length: {len(text_content.strip())}")
+        print(f"  - multimodal_items count: {len(multimodal_items)}")
+        if text_content:
+            print(f"  - text_content preview: '{text_content[:200]}...'")
+        else:
+            print("  - text_content is EMPTY!")
+
         # Step 2.5: Set content source for context extraction in multimodal processing
         if hasattr(self, "set_content_source_for_context") and multimodal_items:
             self.logger.info(
