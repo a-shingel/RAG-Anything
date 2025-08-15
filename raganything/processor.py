@@ -1644,7 +1644,10 @@ class ProcessorMixin:
 
             # Check 4: Document processing status should be valid
             status = doc_status.get("status", "")
-            if status not in ["PROCESSING", "PROCESSED"]:
+            # Convert status to string if it's an enum object
+            status_str = str(status).split('.')[-1] if hasattr(status, 'value') else str(status)
+            # Support both uppercase (legacy) and lowercase (LightRAG standard) statuses
+            if status_str.upper() not in ["PROCESSING", "PROCESSED"]:
                 self.logger.error(f"Invalid document status '{status}' for {doc_id}")
                 return False
 
