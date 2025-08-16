@@ -641,6 +641,21 @@ class MineruParser(Parser):
 
             # Start subprocess
             process = subprocess.Popen(cmd, **subprocess_kwargs)
+            # Register process for external lifecycle control if a registry is present
+            try:
+                # Optional global registry set by host application for graceful shutdown
+                from raganything.utils import (
+                    register_external_process,
+                    unregister_external_process,
+                )  # type: ignore
+
+                try:
+                    register_external_process(process)
+                except Exception:
+                    pass
+            except Exception:
+                # registry not available; continue without registration
+                pass
 
             # Create queues for stdout and stderr
             stdout_queue = Queue()
@@ -711,6 +726,10 @@ class MineruParser(Parser):
 
             # Wait for process to complete and get return code
             return_code = process.wait()
+            try:
+                unregister_external_process(process)
+            except Exception:
+                pass
 
             # Wait for threads to finish
             stdout_thread.join(timeout=5)

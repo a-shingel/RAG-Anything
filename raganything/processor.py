@@ -303,7 +303,9 @@ class ProcessorMixin:
         )
         if cached_result is not None:
             content_list, doc_id = cached_result
-            self.logger.info(f"Using cached parsing result for: {file_path}")
+            self.logger.info(
+                f"Using cached parsing result for: {file_path}",
+            )
             if display_stats:
                 self.logger.info(
                     f"* Total blocks in cached content_list: {len(content_list)}"
@@ -325,11 +327,21 @@ class ProcessorMixin:
 
             if ext in [".pdf"]:
                 self.logger.info("Detected PDF file, using parser for PDF...")
-                content_list = doc_parser.parse_pdf(
-                    pdf_path=file_path,
-                    output_dir=output_dir,
-                    method=parse_method,
+                _t0 = time.time()
+                content_list = await asyncio.to_thread(
+                    doc_parser.parse_pdf,
+                    file_path,
+                    output_dir,
+                    parse_method,
                     **kwargs,
+                )
+                self.logger.info(
+                    "PDF parsed",
+                    file=str(file_path),
+                    duration_seconds=round(time.time() - _t0, 3),
+                    blocks=len(content_list)
+                    if isinstance(content_list, list)
+                    else None,
                 )
             elif ext in [
                 ".jpg",
@@ -344,16 +356,40 @@ class ProcessorMixin:
                 self.logger.info("Detected image file, using parser for images...")
                 # Use the selected parser's image parsing capability
                 if hasattr(doc_parser, "parse_image"):
-                    content_list = doc_parser.parse_image(
-                        image_path=file_path, output_dir=output_dir, **kwargs
+                    _t0 = time.time()
+                    content_list = await asyncio.to_thread(
+                        doc_parser.parse_image,
+                        file_path,
+                        output_dir,
+                        **kwargs,
+                    )
+                    self.logger.info(
+                        "Image parsed",
+                        file=str(file_path),
+                        duration_seconds=round(time.time() - _t0, 3),
+                        blocks=len(content_list)
+                        if isinstance(content_list, list)
+                        else None,
                     )
                 else:
                     # Fallback to MinerU for image parsing if current parser doesn't support it
                     self.logger.warning(
                         f"{self.config.parser} parser doesn't support image parsing, falling back to MinerU"
                     )
-                    content_list = MineruParser().parse_image(
-                        image_path=file_path, output_dir=output_dir, **kwargs
+                    _t0 = time.time()
+                    content_list = await asyncio.to_thread(
+                        MineruParser().parse_image,
+                        file_path,
+                        output_dir,
+                        **kwargs,
+                    )
+                    self.logger.info(
+                        "Image parsed (fallback MinerU)",
+                        file=str(file_path),
+                        duration_seconds=round(time.time() - _t0, 3),
+                        blocks=len(content_list)
+                        if isinstance(content_list, list)
+                        else None,
                     )
             elif ext in [
                 ".doc",
@@ -369,19 +405,41 @@ class ProcessorMixin:
                 self.logger.info(
                     "Detected Office or HTML document, using parser for Office/HTML..."
                 )
-                content_list = doc_parser.parse_office_doc(
-                    doc_path=file_path, output_dir=output_dir, **kwargs
+                _t0 = time.time()
+                content_list = await asyncio.to_thread(
+                    doc_parser.parse_office_doc,
+                    file_path,
+                    output_dir,
+                    **kwargs,
+                )
+                self.logger.info(
+                    "Office/HTML parsed",
+                    file=str(file_path),
+                    duration_seconds=round(time.time() - _t0, 3),
+                    blocks=len(content_list)
+                    if isinstance(content_list, list)
+                    else None,
                 )
             else:
                 # For other or unknown formats, use generic parser
                 self.logger.info(
                     f"Using generic parser for {ext} file (method={parse_method})..."
                 )
-                content_list = doc_parser.parse_document(
-                    file_path=file_path,
-                    method=parse_method,
-                    output_dir=output_dir,
+                _t0 = time.time()
+                content_list = await asyncio.to_thread(
+                    doc_parser.parse_document,
+                    file_path,
+                    output_dir,
+                    parse_method,
                     **kwargs,
+                )
+                self.logger.info(
+                    "Generic file parsed",
+                    file=str(file_path),
+                    duration_seconds=round(time.time() - _t0, 3),
+                    blocks=len(content_list)
+                    if isinstance(content_list, list)
+                    else None,
                 )
 
         except Exception as e:
@@ -390,11 +448,19 @@ class ProcessorMixin:
             )
             self.logger.warning("Falling back to MinerU parser...")
             # If specific parser fails, fall back to MinerU parser
-            content_list = MineruParser().parse_document(
-                file_path=file_path,
-                method=parse_method,
-                output_dir=output_dir,
+            _t0 = time.time()
+            content_list = await asyncio.to_thread(
+                MineruParser().parse_document,
+                file_path,
+                output_dir,
+                parse_method,
                 **kwargs,
+            )
+            self.logger.info(
+                "Generic file parsed (fallback MinerU)",
+                file=str(file_path),
+                duration_seconds=round(time.time() - _t0, 3),
+                blocks=len(content_list) if isinstance(content_list, list) else None,
             )
 
         self.logger.info(

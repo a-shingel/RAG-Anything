@@ -6,6 +6,37 @@ Contains helper functions for content separation, text insertion, and other util
 
 import base64
 from typing import Dict, List, Any, Tuple
+import threading
+
+_external_processes_lock = threading.Lock()
+_external_processes = set()
+
+
+def register_external_process(proc):
+    """Register a spawned external process (e.g., MinerU) for lifecycle control.
+
+    Host application may import and terminate these on shutdown.
+    """
+    try:
+        with _external_processes_lock:
+            _external_processes.add(proc)
+    except Exception:
+        pass
+
+
+def iter_external_processes():
+    with _external_processes_lock:
+        return list(_external_processes)
+
+
+def unregister_external_process(proc):
+    try:
+        with _external_processes_lock:
+            _external_processes.discard(proc)
+    except Exception:
+        pass
+
+
 from pathlib import Path
 from lightrag.utils import logger
 
