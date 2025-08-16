@@ -527,7 +527,7 @@ class ProcessorMixin:
             try:
                 content_type = item.get("type", "unknown")
                 self.logger.info(
-                    f"Processing item {i+1}/{len(multimodal_items)}: {content_type} content"
+                    f"Processing item {i + 1}/{len(multimodal_items)}: {content_type} content"
                 )
 
                 # Select appropriate processor
