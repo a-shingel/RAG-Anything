@@ -342,11 +342,13 @@ class ProcessorMixin:
                 )
                 self.logger.info(
                     "PDF parsed",
-                    file=str(file_path),
-                    duration_seconds=round(time.time() - _t0, 3),
-                    blocks=len(content_list)
-                    if isinstance(content_list, list)
-                    else None,
+                    extra={
+                        "file": str(file_path),
+                        "duration_seconds": round(time.time() - _t0, 3),
+                        "blocks": (
+                            len(content_list) if isinstance(content_list, list) else None
+                        ),
+                    },
                 )
             elif ext in [
                 ".jpg",
@@ -370,11 +372,15 @@ class ProcessorMixin:
                     )
                     self.logger.info(
                         "Image parsed",
-                        file=str(file_path),
-                        duration_seconds=round(time.time() - _t0, 3),
-                        blocks=len(content_list)
-                        if isinstance(content_list, list)
-                        else None,
+                        extra={
+                            "file": str(file_path),
+                            "duration_seconds": round(time.time() - _t0, 3),
+                            "blocks": (
+                                len(content_list)
+                                if isinstance(content_list, list)
+                                else None
+                            ),
+                        },
                     )
                 else:
                     # Fallback to MinerU for image parsing if current parser doesn't support it
@@ -390,11 +396,15 @@ class ProcessorMixin:
                     )
                     self.logger.info(
                         "Image parsed (fallback MinerU)",
-                        file=str(file_path),
-                        duration_seconds=round(time.time() - _t0, 3),
-                        blocks=len(content_list)
-                        if isinstance(content_list, list)
-                        else None,
+                        extra={
+                            "file": str(file_path),
+                            "duration_seconds": round(time.time() - _t0, 3),
+                            "blocks": (
+                                len(content_list)
+                                if isinstance(content_list, list)
+                                else None
+                            ),
+                        },
                     )
             elif ext in [
                 ".doc",
@@ -419,11 +429,13 @@ class ProcessorMixin:
                 )
                 self.logger.info(
                     "Office/HTML parsed",
-                    file=str(file_path),
-                    duration_seconds=round(time.time() - _t0, 3),
-                    blocks=len(content_list)
-                    if isinstance(content_list, list)
-                    else None,
+                    extra={
+                        "file": str(file_path),
+                        "duration_seconds": round(time.time() - _t0, 3),
+                        "blocks": (
+                            len(content_list) if isinstance(content_list, list) else None
+                        ),
+                    },
                 )
             elif ext in [".txt", ".md"]:
                 print(
@@ -460,11 +472,13 @@ class ProcessorMixin:
                 )
                 self.logger.info(
                     "Generic file parsed",
-                    file=str(file_path),
-                    duration_seconds=round(time.time() - _t0, 3),
-                    blocks=len(content_list)
-                    if isinstance(content_list, list)
-                    else None,
+                    extra={
+                        "file": str(file_path),
+                        "duration_seconds": round(time.time() - _t0, 3),
+                        "blocks": (
+                            len(content_list) if isinstance(content_list, list) else None
+                        ),
+                    },
                 )
 
         except Exception as e:
@@ -483,9 +497,13 @@ class ProcessorMixin:
             )
             self.logger.info(
                 "Generic file parsed (fallback MinerU)",
-                file=str(file_path),
-                duration_seconds=round(time.time() - _t0, 3),
-                blocks=len(content_list) if isinstance(content_list, list) else None,
+                extra={
+                    "file": str(file_path),
+                    "duration_seconds": round(time.time() - _t0, 3),
+                    "blocks": (
+                        len(content_list) if isinstance(content_list, list) else None
+                    ),
+                },
             )
 
         self.logger.info(
