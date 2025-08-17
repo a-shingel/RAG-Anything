@@ -683,6 +683,15 @@ class ProcessorMixin:
                     }
 
                     # Process content and get chunk results instead of immediately merging
+                    # Guard: skip description/caption generation if callable missing
+                    if not getattr(
+                        processor, "process_multimodal_content", None
+                    ) or not callable(processor.process_multimodal_content):
+                        self.logger.warning(
+                            "Processor missing process_multimodal_content; skipping item"
+                        )
+                        continue
+
                     (
                         enhanced_caption,
                         entity_info,
@@ -849,6 +858,13 @@ class ProcessorMixin:
                     }
 
                     # Call the correct processor's description generation method
+                    if not getattr(
+                        processor, "generate_description_only", None
+                    ) or not callable(processor.generate_description_only):
+                        self.logger.warning(
+                            "Processor missing generate_description_only; skipping description"
+                        )
+                        return None
                     (
                         description,
                         entity_info,
@@ -935,7 +951,8 @@ class ProcessorMixin:
             enhanced_chunk_results, file_path
         )
 
-        # Stage 7: Update doc_status with integrated chunks_list
+        # Stage 7: Ensure doc_status exists then update with integrated chunks_list
+        await self._ensure_doc_status(doc_id, file_path)
         await self._update_doc_status_with_chunks_type_aware(doc_id, chunk_ids)
 
     def _convert_to_lightrag_chunks_type_aware(
@@ -1461,6 +1478,14 @@ class ProcessorMixin:
         if doc_id is None:
             doc_id = content_based_doc_id
 
+        # Ensure a baseline doc_status exists so multimodal updates/validation won't fail
+        try:
+            await self._ensure_doc_status(doc_id, str(file_path))
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to ensure baseline doc_status for {doc_id}: {e}"
+            )
+
         # Step 2: Separate text and multimodal content
         text_content, multimodal_items = separate_content(content_list)
 
@@ -1501,6 +1526,8 @@ class ProcessorMixin:
         else:
             # If no multimodal content, validate and mark multimodal processing as complete
             # This ensures the document status properly reflects completion of all processing
+            # Ensure doc_status exists for image-only/text-only docs
+            await self._ensure_doc_status(doc_id, file_path, status="PROCESSED")
             if await self._validate_multimodal_processing_complete(doc_id, []):
                 await self._mark_multimodal_processing_complete(doc_id)
                 self.logger.debug(
@@ -1512,6 +1539,38 @@ class ProcessorMixin:
                 )
 
         self.logger.info(f"Document {file_path} processing complete!")
+
+    async def _ensure_doc_status(
+        self, doc_id: str, file_path: str, *, status: str | None = None
+    ) -> None:
+        """Create or update a minimal doc_status record if missing.
+
+        Ensures downstream multimodal updates and validations have a doc_status to work with
+        (especially for image-only documents where no text insertion occurs).
+        """
+        try:
+            current = await self.lightrag.doc_status.get_by_id(doc_id)
+            ts = time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+            if not current:
+                base = {
+                    "file_path": str(file_path),
+                    "status": status or "PROCESSING",
+                    "multimodal_processed": False,
+                    "chunks_count": 0,
+                    "chunks_list": [],
+                    "updated_at": ts,
+                }
+                await self.lightrag.doc_status.upsert({doc_id: base})
+                await self.lightrag.doc_status.index_done_callback()
+                self.logger.debug(f"Created baseline doc_status for {doc_id}")
+            elif status and str(current.get("status", "")) != status:
+                await self.lightrag.doc_status.upsert(
+                    {doc_id: {**current, "status": status, "updated_at": ts}}
+                )
+                await self.lightrag.doc_status.index_done_callback()
+        except Exception as e:
+            # Best-effort; don't block the pipeline
+            self.logger.debug(f"_ensure_doc_status skipped due to error: {e}")
 
     async def insert_content_list(
         self,

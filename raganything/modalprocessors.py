@@ -607,6 +607,32 @@ class BaseModalProcessor:
             return None
 
         try:
+            # Early guard: no caption model configured → fallback without raising errors
+            if not callable(self.modal_caption_func):
+                logger.warning(
+                    "Table caption model not configured; skipping caption and using fallback entity"
+                )
+                fallback_entity = {
+                    "entity_name": entity_name
+                    if entity_name
+                    else f"table_{compute_mdhash_id(str(modal_content))}",
+                    "entity_type": "table",
+                    "summary": f"Table content: {str(modal_content)[:100]}",
+                }
+                return str(modal_content), fallback_entity
+            # Early guard: no caption model configured → fallback without raising errors
+            if not callable(self.modal_caption_func):
+                logger.warning(
+                    "Image caption model not configured; skipping caption and using fallback entity"
+                )
+                fallback_entity = {
+                    "entity_name": entity_name
+                    if entity_name
+                    else f"image_{compute_mdhash_id(str(modal_content))}",
+                    "entity_type": "image",
+                    "summary": f"Image content: {str(modal_content)[:100]}",
+                }
+                return str(modal_content), fallback_entity
             return json.loads(json_str)
         except (json.JSONDecodeError, ValueError):
             return None
@@ -828,6 +854,19 @@ class ImageModalProcessor(BaseModalProcessor):
             Tuple of (enhanced_caption, entity_info)
         """
         try:
+            # Early guard: no caption model configured → fallback without raising errors
+            if not callable(self.modal_caption_func):
+                logger.warning(
+                    "Equation caption model not configured; skipping caption and using fallback entity"
+                )
+                fallback_entity = {
+                    "entity_name": entity_name
+                    if entity_name
+                    else f"equation_{compute_mdhash_id(str(modal_content))}",
+                    "entity_type": "equation",
+                    "summary": f"Equation content: {str(modal_content)[:100]}",
+                }
+                return str(modal_content), fallback_entity
             # Parse image content (reuse existing logic)
             if isinstance(modal_content, str):
                 try:

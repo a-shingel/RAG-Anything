@@ -177,9 +177,16 @@ class RAGAnything(QueryMixin, ProcessorMixin, BatchMixin):
         self.modal_processors = {}
 
         if self.config.enable_image_processing:
+            # Guard: if both vision and llm funcs are None, log and disable captioning
+            modal_caption = self.vision_model_func or self.llm_model_func
+            if not callable(modal_caption):
+                self.logger.warning(
+                    "Image caption model is not configured; proceeding without captions"
+                )
+                modal_caption = None
             self.modal_processors["image"] = ImageModalProcessor(
                 lightrag=self.lightrag,
-                modal_caption_func=self.vision_model_func or self.llm_model_func,
+                modal_caption_func=modal_caption,
                 context_extractor=self.context_extractor,
             )
 
