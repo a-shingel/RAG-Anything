@@ -346,7 +346,9 @@ class ProcessorMixin:
                         "file": str(file_path),
                         "duration_seconds": round(time.time() - _t0, 3),
                         "blocks": (
-                            len(content_list) if isinstance(content_list, list) else None
+                            len(content_list)
+                            if isinstance(content_list, list)
+                            else None
                         ),
                     },
                 )
@@ -433,7 +435,9 @@ class ProcessorMixin:
                         "file": str(file_path),
                         "duration_seconds": round(time.time() - _t0, 3),
                         "blocks": (
-                            len(content_list) if isinstance(content_list, list) else None
+                            len(content_list)
+                            if isinstance(content_list, list)
+                            else None
                         ),
                     },
                 )
@@ -466,8 +470,8 @@ class ProcessorMixin:
                 content_list = await asyncio.to_thread(
                     doc_parser.parse_document,
                     file_path,
-                    output_dir,
                     parse_method,
+                    output_dir,
                     **kwargs,
                 )
                 self.logger.info(
@@ -476,7 +480,9 @@ class ProcessorMixin:
                         "file": str(file_path),
                         "duration_seconds": round(time.time() - _t0, 3),
                         "blocks": (
-                            len(content_list) if isinstance(content_list, list) else None
+                            len(content_list)
+                            if isinstance(content_list, list)
+                            else None
                         ),
                     },
                 )
@@ -491,8 +497,8 @@ class ProcessorMixin:
             content_list = await asyncio.to_thread(
                 MineruParser().parse_document,
                 file_path,
-                output_dir,
                 parse_method,
+                output_dir,
                 **kwargs,
             )
             self.logger.info(
@@ -1663,7 +1669,9 @@ class ProcessorMixin:
             # Check 4: Document processing status should be valid
             status = doc_status.get("status", "")
             # Convert status to string if it's an enum object
-            status_str = str(status).split('.')[-1] if hasattr(status, 'value') else str(status)
+            status_str = (
+                str(status).split(".")[-1] if hasattr(status, "value") else str(status)
+            )
             # Support both uppercase (legacy) and lowercase (LightRAG standard) statuses
             if status_str.upper() not in ["PROCESSING", "PROCESSED"]:
                 self.logger.error(f"Invalid document status '{status}' for {doc_id}")
