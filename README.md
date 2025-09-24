@@ -4,7 +4,7 @@
   <img src="./assets/logo.png" width="120" height="120" alt="RAG-Anything Logo" style="border-radius: 20px; box-shadow: 0 8px 32px rgba(0, 217, 255, 0.3);">
 </div>
 
-# 🚀 RAG-Anything: All-in-One RAG System
+# 🚀 RAG-Anything: All-in-One RAG Framework
 
 <div align="center">
   <img src="https://readme-typing-svg.herokuapp.com?font=Orbitron&size=24&duration=3000&pause=1000&color=00D9FF&center=true&vCenter=true&width=600&lines=Welcome+to+RAG-Anything;Next-Gen+Multimodal+RAG+System;Powered+by+Advanced+AI+Technology" alt="Typing Animation" />
@@ -21,6 +21,7 @@
       <a href="https://github.com/HKUDS/RAG-Anything/stargazers"><img src='https://img.shields.io/github/stars/HKUDS/RAG-Anything?color=00d9ff&style=for-the-badge&logo=star&logoColor=white&labelColor=1a1a2e' /></a>
       <img src="https://img.shields.io/badge/🐍Python-3.10-4ecdc4?style=for-the-badge&logo=python&logoColor=white&labelColor=1a1a2e">
       <a href="https://pypi.org/project/raganything/"><img src="https://img.shields.io/pypi/v/raganything.svg?style=for-the-badge&logo=pypi&logoColor=white&labelColor=1a1a2e&color=ff6b6b"></a>
+      <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/badge/⚡uv-Ready-ff6b6b?style=for-the-badge&logo=python&logoColor=white&labelColor=1a1a2e"></a>
     </p>
     <p>
       <a href="https://discord.gg/yF2MmDJyGJ"><img src="https://img.shields.io/badge/💬Discord-Community-7289da?style=for-the-badge&logo=discord&logoColor=white&labelColor=1a1a2e"></a>
@@ -245,14 +246,26 @@ pip install 'raganything[image,text]'       # Multiple features
 ```
 
 #### Option 2: Install from Source
-
 ```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone and setup the project with uv
 git clone https://github.com/HKUDS/RAG-Anything.git
 cd RAG-Anything
-pip install -e .
 
-# With optional dependencies
-pip install -e '.[all]'
+# Install the package and dependencies in a virtual environment
+uv sync
+
+# If you encounter network timeouts (especially for opencv packages):
+# UV_HTTP_TIMEOUT=120 uv sync
+
+# Run commands directly with uv (recommended approach)
+uv run python examples/raganything_example.py --help
+
+# Install with optional dependencies
+uv sync --extra image --extra text  # Specific extras
+uv sync --all-extras                 # All optional features
 ```
 
 #### Optional Dependencies
@@ -276,7 +289,7 @@ pip install -e '.[all]'
 mineru --version
 
 # Check if properly configured
-python -c "from raganything import RAGAnything; rag = RAGAnything(); print('✅ MinerU installed properly' if rag.check_mineru_installation() else '❌ MinerU installation issue')"
+python -c "from raganything import RAGAnything; rag = RAGAnything(); print('✅ MinerU installed properly' if rag.check_parser_installation() else '❌ MinerU installation issue')"
 ```
 
 Models are downloaded automatically on first use. For manual download, refer to [MinerU Model Source Configuration](https://github.com/opendatalab/MinerU/blob/master/README.md#22-model-source-configuration).
@@ -489,8 +502,8 @@ async def process_multimodal_content():
 
     image_content = {
         "img_path": "path/to/image.jpg",
-        "img_caption": ["Figure 1: Experimental results"],
-        "img_footnote": ["Data collected in 2024"]
+        "image_caption": ["Figure 1: Experimental results"],
+        "image_footnote": ["Data collected in 2024"]
     }
 
     description, entity_info = await image_processor.process_multimodal_content(
@@ -863,8 +876,8 @@ async def insert_content_list_example():
         {
             "type": "image",
             "img_path": "/absolute/path/to/figure1.jpg",  # IMPORTANT: Use absolute path
-            "img_caption": ["Figure 1: System Architecture"],
-            "img_footnote": ["Source: Authors' original design"],
+            "image_caption": ["Figure 1: System Architecture"],
+            "image_footnote": ["Source: Authors' original design"],
             "page_idx": 1  # Page number where this image appears
         },
         {
@@ -934,7 +947,7 @@ if __name__ == "__main__":
 The `content_list` should follow the standard format with each item being a dictionary containing:
 
 - **Text content**: `{"type": "text", "text": "content text", "page_idx": 0}`
-- **Image content**: `{"type": "image", "img_path": "/absolute/path/to/image.jpg", "img_caption": ["caption"], "img_footnote": ["note"], "page_idx": 1}`
+- **Image content**: `{"type": "image", "img_path": "/absolute/path/to/image.jpg", "image_caption": ["caption"], "image_footnote": ["note"], "page_idx": 1}`
 - **Table content**: `{"type": "table", "table_body": "markdown table", "table_caption": ["caption"], "table_footnote": ["note"], "page_idx": 2}`
 - **Equation content**: `{"type": "equation", "latex": "LaTeX formula", "text": "description", "page_idx": 3}`
 - **Generic content**: `{"type": "custom_type", "content": "any content", "page_idx": 4}`

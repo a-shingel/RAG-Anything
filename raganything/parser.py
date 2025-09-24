@@ -32,6 +32,17 @@ from typing import (
 T = TypeVar("T")
 
 
+class MineruExecutionError(Exception):
+    """catch mineru error"""
+
+    def __init__(self, return_code, error_msg):
+        self.return_code = return_code
+        self.error_msg = error_msg
+        super().__init__(
+            f"Mineru command failed with return code {return_code}: {error_msg}"
+        )
+
+
 class Parser:
     """
     Base class for document parsing utilities.
@@ -250,6 +261,30 @@ class Parser:
                 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                 from reportlab.lib.units import inch
                 from reportlab.pdfbase import pdfmetrics
+                from reportlab.pdfbase.ttfonts import TTFont
+
+                support_chinese = True
+                try:
+                    if "WenQuanYi" not in pdfmetrics.getRegisteredFontNames():
+                        if not Path(
+                            "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc"
+                        ).exists():
+                            support_chinese = False
+                            logging.warning(
+                                "WenQuanYi font not found at /usr/share/fonts/wqy-microhei/wqy-microhei.ttc. Chinese characters may not render correctly."
+                            )
+                        else:
+                            pdfmetrics.registerFont(
+                                TTFont(
+                                    "WenQuanYi",
+                                    "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
+                                )
+                            )
+                except Exception as e:
+                    support_chinese = False
+                    logging.warning(
+                        f"Failed to register WenQuanYi font: {e}. Chinese characters may not render correctly."
+                    )
 
                 # Create PDF document
                 doc = SimpleDocTemplate(
@@ -265,6 +300,9 @@ class Parser:
                 styles = getSampleStyleSheet()
                 normal_style = styles["Normal"]
                 heading_style = styles["Heading1"]
+                if support_chinese:
+                    normal_style.fontName = "WenQuanYi"
+                    heading_style.fontName = "WenQuanYi"
 
                 # Try to register a font that supports Chinese characters
                 try:
@@ -607,6 +645,9 @@ class MineruParser(Parser):
         if vlm_url:
             cmd.extend(["-u", vlm_url])
 
+        output_lines = []
+        error_lines = []
+
         try:
             # Prepare subprocess parameters to hide console window on Windows
             import platform
@@ -665,6 +706,7 @@ class MineruParser(Parser):
                 try:
                     while True:
                         prefix, line = stdout_queue.get_nowait()
+                        output_lines.append(line)
                         # Log mineru output with INFO level, prefixed with [MinerU]
                         logging.info(f"[MinerU] {line}")
                 except Empty:
@@ -679,6 +721,8 @@ class MineruParser(Parser):
                             logging.warning(f"[MinerU] {line}")
                         elif "error" in line.lower():
                             logging.error(f"[MinerU] {line}")
+                            error_message = line.split("\n")[0]
+                            error_lines.append(error_message)
                         else:
                             logging.info(f"[MinerU] {line}")
                 except Empty:
@@ -693,6 +737,7 @@ class MineruParser(Parser):
             try:
                 while True:
                     prefix, line = stdout_queue.get_nowait()
+                    output_lines.append(line)
                     logging.info(f"[MinerU] {line}")
             except Empty:
                 pass
@@ -704,6 +749,8 @@ class MineruParser(Parser):
                         logging.warning(f"[MinerU] {line}")
                     elif "error" in line.lower():
                         logging.error(f"[MinerU] {line}")
+                        error_message = line.split("\n")[0]
+                        error_lines.append(error_message)
                     else:
                         logging.info(f"[MinerU] {line}")
             except Empty:
@@ -716,13 +763,16 @@ class MineruParser(Parser):
             stdout_thread.join(timeout=5)
             stderr_thread.join(timeout=5)
 
-            if return_code == 0:
-                logging.info("[MinerU] Command executed successfully")
+            if return_code != 0 or error_lines:
+                logging.info("[MinerU] Command executed failed")
+                raise MineruExecutionError(return_code, error_lines)
             else:
-                raise subprocess.CalledProcessError(return_code, cmd)
+                logging.info("[MinerU] Command executed successfully")
 
+        except MineruExecutionError:
+            raise
         except subprocess.CalledProcessError as e:
-            logging.error(f"Error running mineru command: {e}")
+            logging.error(f"Error running mineru subprocess command: {e}")
             logging.error(f"Command: {' '.join(cmd)}")
             logging.error(f"Return code: {e.returncode}")
             raise
@@ -732,8 +782,9 @@ class MineruParser(Parser):
                 "pip install -U 'mineru[core]' or uv pip install -U 'mineru[core]'"
             )
         except Exception as e:
-            logging.error(f"Unexpected error running mineru command: {e}")
-            raise
+            error_message = f"Unexpected error running mineru command: {e}"
+            logging.error(error_message)
+            raise RuntimeError(error_message) from e
 
     @staticmethod
     def _read_output_files(
@@ -858,6 +909,8 @@ class MineruParser(Parser):
             )
             return content_list
 
+        except MineruExecutionError:
+            raise
         except Exception as e:
             logging.error(f"Error in parse_pdf: {str(e)}")
             raise
@@ -995,6 +1048,9 @@ class MineruParser(Parser):
                     base_output_dir, name_without_suff, method="ocr"
                 )
                 return content_list
+
+            except MineruExecutionError:
+                raise
 
             finally:
                 # Clean up temporary converted file if it was created

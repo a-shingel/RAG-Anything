@@ -272,7 +272,7 @@ pip install -e '.[all]'
 mineru --version
 
 # 检查是否正确配置
-python -c "from raganything import RAGAnything; rag = RAGAnything(); print('✅ MinerU安装正常' if rag.check_mineru_installation() else '❌ MinerU安装有问题')"
+python -c "from raganything import RAGAnything; rag = RAGAnything(); print('✅ MinerU安装正常' if rag.check_parser_installation() else '❌ MinerU安装有问题')"
 ```
 
 模型在首次使用时自动下载。手动下载参考[MinerU模型源配置](https://github.com/opendatalab/MinerU/blob/master/README_zh-CN.md#22-%E6%A8%A1%E5%9E%8B%E6%BA%90%E9%85%8D%E7%BD%AE)：
@@ -487,8 +487,8 @@ async def process_multimodal_content():
 
     image_content = {
         "img_path": "path/to/image.jpg",
-        "img_caption": ["图1：实验结果"],
-        "img_footnote": ["数据收集于2024年"]
+        "image_caption": ["图1：实验结果"],
+        "image_footnote": ["数据收集于2024年"]
     }
 
     description, entity_info = await image_processor.process_multimodal_content(
@@ -860,8 +860,8 @@ async def insert_content_list_example():
         {
             "type": "image",
             "img_path": "/absolute/path/to/figure1.jpg",  # 重要：使用绝对路径
-            "img_caption": ["图1：系统架构"],
-            "img_footnote": ["来源：作者原创设计"],
+            "image_caption": ["图1：系统架构"],
+            "image_footnote": ["来源：作者原创设计"],
             "page_idx": 1  # 此图像出现的页码
         },
         {
@@ -931,7 +931,7 @@ if __name__ == "__main__":
 `content_list` 应遵循标准格式，每个项目都是包含以下内容的字典：
 
 - **文本内容**: `{"type": "text", "text": "内容文本", "page_idx": 0}`
-- **图像内容**: `{"type": "image", "img_path": "/absolute/path/to/image.jpg", "img_caption": ["标题"], "img_footnote": ["注释"], "page_idx": 1}`
+- **图像内容**: `{"type": "image", "img_path": "/absolute/path/to/image.jpg", "image_caption": ["标题"], "image_footnote": ["注释"], "page_idx": 1}`
 - **表格内容**: `{"type": "table", "table_body": "markdown表格", "table_caption": ["标题"], "table_footnote": ["注释"], "page_idx": 2}`
 - **公式内容**: `{"type": "equation", "latex": "LaTeX公式", "text": "描述", "page_idx": 3}`
 - **通用内容**: `{"type": "custom_type", "content": "任何内容", "page_idx": 4}`
