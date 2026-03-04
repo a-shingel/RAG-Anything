@@ -68,6 +68,13 @@ class TestRegisterLanguage:
         # Missing keys should fallback to English
         assert "expert" in PROMPTS["TABLE_ANALYSIS_SYSTEM"].lower() or "analyst" in PROMPTS["TABLE_ANALYSIS_SYSTEM"].lower()
 
+    def test_mixed_case_registration(self):
+        custom = {"IMAGE_ANALYSIS_SYSTEM": "Analyse d'image"}
+        register_prompt_language("FR", custom)
+        # Case-insensitive selection should still work
+        set_prompt_language("fr")
+        assert PROMPTS["IMAGE_ANALYSIS_SYSTEM"] == "Analyse d'image"
+
 
 class TestGetAvailableLanguages:
     def test_includes_defaults(self):

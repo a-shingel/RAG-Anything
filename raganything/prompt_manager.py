@@ -18,7 +18,8 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+import threading
+from typing import Any, Dict
 
 from raganything.prompt import PROMPTS
 
@@ -34,6 +35,21 @@ _PROMPT_LANGUAGES: Dict[str, Dict[str, Any]] = {
 
 # Current active language
 _current_language: str = "en"
+
+# Lock to make updates to PROMPTS atomic under concurrent access
+_PROMPTS_LOCK = threading.RLock()
+
+
+def _normalize_language_code(language_code: str) -> str:
+    """Normalize a language code to canonical form."""
+    if not isinstance(language_code, str):
+        raise TypeError(
+            f"language code must be a non-empty string, got {type(language_code).__name__}"
+        )
+    normalized = language_code.strip().lower()
+    if not normalized:
+        raise ValueError("language code must be a non-empty string")
+    return normalized
 
 
 def _lazy_load_language(lang: str) -> Dict[str, Any]:
@@ -60,10 +76,9 @@ def register_prompt_language(language_code: str, prompts: Dict[str, Any]) -> Non
         my_prompts = {"IMAGE_ANALYSIS_SYSTEM": "...in Japanese..."}
         register_prompt_language("ja", my_prompts)
     """
-    _PROMPT_LANGUAGES[language_code] = prompts
-    logger.info(
-        f"Registered prompt language '{language_code}' with {len(prompts)} templates"
-    )
+    lang = _normalize_language_code(language_code)
+    _PROMPT_LANGUAGES[lang] = prompts
+    logger.info("Registered prompt language '%s' with %d templates", lang, len(prompts))
 
 
 def set_prompt_language(language: str) -> None:
@@ -82,7 +97,7 @@ def set_prompt_language(language: str) -> None:
     """
     global _current_language
 
-    lang = language.strip().lower()
+    lang = _normalize_language_code(language)
 
     # Try lazy-loading if not already registered
     if lang not in _PROMPT_LANGUAGES:
@@ -99,15 +114,20 @@ def set_prompt_language(language: str) -> None:
 
     target_prompts = _PROMPT_LANGUAGES[lang]
 
-    # Replace PROMPTS entries, falling back to English for missing keys
+    # Compute the resolved prompt set first, then atomically swap under a lock.
+    resolved: Dict[str, Any] = {}
     for key in _ENGLISH_PROMPTS:
         if key in target_prompts:
-            PROMPTS[key] = target_prompts[key]
+            resolved[key] = target_prompts[key]
         else:
-            PROMPTS[key] = _ENGLISH_PROMPTS[key]
+            resolved[key] = _ENGLISH_PROMPTS[key]
 
-    _current_language = lang
-    logger.info(f"Prompt language set to '{lang}'")
+    with _PROMPTS_LOCK:
+        PROMPTS.clear()
+        PROMPTS.update(resolved)
+        _current_language = lang
+
+    logger.info("Prompt language set to '%s'", lang)
 
 
 def get_prompt_language() -> str:
@@ -118,9 +138,10 @@ def get_prompt_language() -> str:
 def reset_prompts() -> None:
     """Reset all prompts back to the default English templates."""
     global _current_language
-    for key, value in _ENGLISH_PROMPTS.items():
-        PROMPTS[key] = value
-    _current_language = "en"
+    with _PROMPTS_LOCK:
+        PROMPTS.clear()
+        PROMPTS.update(_ENGLISH_PROMPTS)
+        _current_language = "en"
     logger.info("Prompts reset to English defaults")
 
 
