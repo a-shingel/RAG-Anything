@@ -7,9 +7,7 @@ Expands the project's test surface area significantly.
 
 import pytest
 import base64
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from raganything.config import RAGAnythingConfig
 from raganything.base import DocStatus
@@ -47,7 +45,24 @@ class TestDocStatus:
 
 
 class TestRAGAnythingConfig:
-    def test_default_values(self):
+    def test_default_values(self, monkeypatch):
+        # Clear environment overrides to make defaults deterministic
+        for key in [
+            "PARSER",
+            "PARSE_METHOD",
+            "ENABLE_IMAGE_PROCESSING",
+            "ENABLE_TABLE_PROCESSING",
+            "ENABLE_EQUATION_PROCESSING",
+            "MAX_CONCURRENT_FILES",
+            "CONTEXT_WINDOW",
+            "CONTEXT_MODE",
+            "MAX_CONTEXT_TOKENS",
+            "INCLUDE_HEADERS",
+            "INCLUDE_CAPTIONS",
+            "USE_FULL_PATH",
+        ]:
+            monkeypatch.delenv(key, raising=False)
+
         config = RAGAnythingConfig()
         assert config.parse_method == "auto"
         assert config.parser == "mineru"
