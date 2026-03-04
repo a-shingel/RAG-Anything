@@ -174,3 +174,87 @@ class TestMetricsCallback:
         m.on_document_complete(file_path="a.pdf")
         m.reset()
         assert m.metrics["documents_processed"] == 0
+
+
+class TestRAGAnythingIntegration:
+    def test_process_document_emits_callbacks(self, monkeypatch, tmp_path):
+        pytest.importorskip("lightrag")
+
+        from raganything import RAGAnything, RAGAnythingConfig
+        import raganything.processor as processor_module
+        import asyncio
+
+        config = RAGAnythingConfig()
+        config.parser_output_dir = str(tmp_path)
+        rag = RAGAnything(config=config)
+        cb = RecordingCallback()
+        rag.callback_manager.register(cb)
+
+        async def fake_ensure():
+            return {"success": True}
+
+        async def fake_parse(
+            file_path, output_dir, parse_method, display_stats, **kwargs
+        ):
+            # Single text block, no multimodal content.
+            return ([{"type": "text", "text": "hello world"}], "doc-123")
+
+        async def fake_mm(items, file_path, doc_id):
+            return
+
+        async def fake_mark(doc_id):
+            return
+
+        async def fake_insert_text_content(*args, **kwargs):
+            return
+
+        monkeypatch.setattr(rag, "_ensure_lightrag_initialized", fake_ensure)
+        monkeypatch.setattr(rag, "parse_document", fake_parse)
+        monkeypatch.setattr(rag, "_process_multimodal_content", fake_mm)
+        monkeypatch.setattr(rag, "_mark_multimodal_processing_complete", fake_mark)
+        monkeypatch.setattr(
+            processor_module, "insert_text_content", fake_insert_text_content
+        )
+
+        asyncio.run(
+            rag.process_document_complete(
+                str(tmp_path / "dummy.pdf"),
+                output_dir=str(tmp_path),
+                parse_method="auto",
+                display_stats=False,
+            )
+        )
+
+        event_kinds = [e[0] for e in cb.events]
+        assert "parse_start" in event_kinds
+        assert "parse_complete" in event_kinds
+        assert "text_insert_start" in event_kinds
+        assert "text_insert_complete" in event_kinds
+        assert "document_complete" in event_kinds
+
+    def test_query_emits_callbacks(self, monkeypatch):
+        pytest.importorskip("lightrag")
+
+        from raganything import RAGAnything, RAGAnythingConfig
+        import asyncio
+
+        class FakeLightRAG:
+            async def aquery(self, query, param, system_prompt=None):
+                return "answer"
+
+        config = RAGAnythingConfig()
+        rag = RAGAnything(config=config)
+        rag.lightrag = FakeLightRAG()
+
+        cb = RecordingCallback()
+        rag.callback_manager.register(cb)
+
+        async def run_query():
+            return await rag.aquery("hello", mode="mix")
+
+        result = asyncio.run(run_query())
+        assert result == "answer"
+
+        event_kinds = [e[0] for e in cb.events]
+        assert ("query_start", "hello", "mix") in cb.events
+        assert any(kind == "query_complete" for kind in event_kinds)

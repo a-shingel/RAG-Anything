@@ -26,6 +26,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -253,14 +254,16 @@ class MetricsCallback(ProcessingCallback):
 class CallbackManager:
     """Manages and dispatches events to registered callbacks.
 
-    Thread-safe for registration; event dispatch iterates over a
-    snapshot of registered callbacks.
+    Thread-safe for registration/unregistration and event logging.
+    Event dispatch iterates over a snapshot of currently registered
+    callbacks so that callbacks can safely register/unregister others.
     """
 
     def __init__(self) -> None:
         self._callbacks: List[ProcessingCallback] = []
         self._event_log: List[ProcessingEvent] = []
         self._log_events: bool = False
+        self._lock = threading.RLock()
 
     def register(self, callback: ProcessingCallback) -> None:
         """Register a callback to receive processing events.
@@ -275,11 +278,13 @@ class CallbackManager:
             raise TypeError(
                 f"Expected ProcessingCallback instance, got {type(callback).__name__}"
             )
-        self._callbacks.append(callback)
+        with self._lock:
+            self._callbacks.append(callback)
 
     def unregister(self, callback: ProcessingCallback) -> None:
         """Remove a previously registered callback."""
-        self._callbacks.remove(callback)
+        with self._lock:
+            self._callbacks.remove(callback)
 
     def enable_event_log(self, enabled: bool = True) -> None:
         """Enable or disable internal event logging.
@@ -287,16 +292,19 @@ class CallbackManager:
         When enabled, every dispatched event is recorded in
         :attr:`event_log` for later inspection.
         """
-        self._log_events = enabled
+        with self._lock:
+            self._log_events = enabled
 
     @property
     def event_log(self) -> List[ProcessingEvent]:
         """Read-only access to the internal event log."""
-        return list(self._event_log)
+        with self._lock:
+            return list(self._event_log)
 
     def clear_event_log(self) -> None:
         """Clear the internal event log."""
-        self._event_log.clear()
+        with self._lock:
+            self._event_log.clear()
 
     def dispatch(self, event_name: str, **kwargs: Any) -> None:
         """Dispatch an event to all registered callbacks.
@@ -305,19 +313,22 @@ class CallbackManager:
             event_name: Name of the callback method (e.g., ``"on_parse_start"``).
             **kwargs: Arguments forwarded to the callback method.
         """
-        if self._log_events:
-            event = ProcessingEvent(
-                event_type=event_name,
-                file_path=kwargs.get("file_path"),
-                doc_id=kwargs.get("doc_id"),
-                stage=kwargs.get("stage"),
-                details=kwargs,
-                duration_seconds=kwargs.get("duration_seconds"),
-                error=str(kwargs["error"]) if "error" in kwargs else None,
-            )
-            self._event_log.append(event)
+        with self._lock:
+            callbacks_snapshot = list(self._callbacks)
+            log_events = self._log_events
+            if log_events:
+                event = ProcessingEvent(
+                    event_type=event_name,
+                    file_path=kwargs.get("file_path"),
+                    doc_id=kwargs.get("doc_id"),
+                    stage=kwargs.get("stage"),
+                    details=kwargs,
+                    duration_seconds=kwargs.get("duration_seconds"),
+                    error=str(kwargs["error"]) if "error" in kwargs else None,
+                )
+                self._event_log.append(event)
 
-        for cb in list(self._callbacks):
+        for cb in callbacks_snapshot:
             handler = getattr(cb, event_name, None)
             if handler is not None:
                 try:
