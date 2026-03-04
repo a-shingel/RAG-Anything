@@ -51,3 +51,7 @@ __all__ = [
     "register_prompt_language",
     "get_available_languages",
 ]
+
+def get_version() -> str:
+    """Return the RAG-Anything version string."""
+    return __version__
