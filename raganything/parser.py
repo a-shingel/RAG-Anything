@@ -2111,6 +2111,18 @@ class PaddleOCRParser(Parser):
             return False
 
 
+def _normalize_parser_name(name: str) -> str:
+    """Normalize and validate a parser name for registry APIs."""
+    if not isinstance(name, str):
+        raise TypeError(
+            f"parser name must be a non-empty string, got {type(name).__name__}"
+        )
+    normalized = name.strip().lower()
+    if not normalized:
+        raise ValueError("parser name must be a non-empty string")
+    return normalized
+
+
 # Custom parser registry for Bring-Your-Own-Parser support (see #151)
 _CUSTOM_PARSERS: Dict[str, type] = {}
 
@@ -2155,19 +2167,21 @@ def register_parser(name: str, parser_class: type) -> None:
 
         register_parser("marker", MarkerParser)
     """
-    name = name.strip().lower()
+    normalized_name = _normalize_parser_name(name)
     if not isinstance(parser_class, type) or not issubclass(parser_class, Parser):
         raise TypeError(
             f"parser_class must be a subclass of Parser, got {parser_class!r}"
         )
     _BUILTIN_NAMES = {"mineru", "docling", "paddleocr"}
-    if name in _BUILTIN_NAMES:
+    if normalized_name in _BUILTIN_NAMES:
         raise ValueError(
-            f"Cannot override built-in parser '{name}'. "
+            f"Cannot override built-in parser '{normalized_name}'. "
             f"Choose a different name for your custom parser."
         )
-    _CUSTOM_PARSERS[name] = parser_class
-    Parser.logger.info(f"Registered custom parser: '{name}' -> {parser_class.__name__}")
+    _CUSTOM_PARSERS[normalized_name] = parser_class
+    Parser.logger.info(
+        "Registered custom parser: '%s' -> %s", normalized_name, parser_class.__name__
+    )
 
 
 def unregister_parser(name: str) -> None:
@@ -2177,13 +2191,15 @@ def unregister_parser(name: str) -> None:
         name: The parser name to remove.
 
     Raises:
+        TypeError: If *name* is not a string.
+        ValueError: If *name* is empty or only whitespace.
         KeyError: If no custom parser with that name is registered.
     """
-    name = name.strip().lower()
-    if name not in _CUSTOM_PARSERS:
-        raise KeyError(f"No custom parser registered with name '{name}'")
-    del _CUSTOM_PARSERS[name]
-    Parser.logger.info(f"Unregistered custom parser: '{name}'")
+    normalized_name = _normalize_parser_name(name)
+    if normalized_name not in _CUSTOM_PARSERS:
+        raise KeyError(f"No custom parser registered with name '{normalized_name}'")
+    del _CUSTOM_PARSERS[normalized_name]
+    Parser.logger.info("Unregistered custom parser: '%s'", normalized_name)
 
 
 def list_parsers() -> Dict[str, str]:
@@ -2306,9 +2322,11 @@ def main():
     )
     parser.add_argument(
         "--parser",
-        choices=list(SUPPORTED_PARSERS),
         default="mineru",
-        help="Parser selection",
+        help=(
+            "Parser selection. Built-ins: mineru, docling, paddleocr. "
+            "Custom parsers registered via register_parser() are also accepted."
+        ),
     )
     parser.add_argument(
         "--vlm_url",

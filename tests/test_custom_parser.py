@@ -72,6 +72,24 @@ class TestRegisterParser:
         assert isinstance(parser, AnotherParser)
 
 
+class TestParserNameValidation:
+    def test_register_rejects_non_string_name(self):
+        with pytest.raises(TypeError, match="non-empty string"):
+            register_parser(123, DummyParser)  # type: ignore[arg-type]
+
+    def test_register_rejects_blank_name(self):
+        with pytest.raises(ValueError, match="non-empty string"):
+            register_parser("   ", DummyParser)
+
+    def test_unregister_rejects_non_string_name(self):
+        with pytest.raises(TypeError, match="non-empty string"):
+            unregister_parser(None)  # type: ignore[arg-type]
+
+    def test_unregister_rejects_blank_name(self):
+        with pytest.raises(ValueError, match="non-empty string"):
+            unregister_parser("   ")
+
+
 class TestUnregisterParser:
     def test_unregister_existing(self):
         register_parser("dummy", DummyParser)
@@ -127,3 +145,41 @@ class TestGetParserFallback:
         parser = get_parser("dummy")
         content = parser.parse_document("fake.pdf")
         assert content == [{"type": "text", "text": "dummy parsed content", "page_idx": 0}]
+
+
+class TestCliIntegration:
+    def test_cli_accepts_custom_parser_name(self, monkeypatch, tmp_path):
+        """Ensure CLI argument parsing does not reject custom parser names."""
+        import sys
+        from raganything import parser as parser_module
+
+        class DummyCliParser(Parser):
+            def check_installation(self) -> bool:
+                return True
+
+            def parse_document(
+                self, file_path, output_dir="./output", method="auto", **kwargs
+            ):
+                # Do not touch the filesystem; just return a dummy result.
+                return [{"type": "text", "text": "ok", "page_idx": 0}]
+
+        def fake_get_parser(name: str) -> Parser:
+            assert name == "custom-cli"
+            return DummyCliParser()
+
+        monkeypatch.setattr(parser_module, "get_parser", fake_get_parser)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "raganything-parser",
+                str(tmp_path / "dummy.pdf"),
+                "--parser",
+                "custom-cli",
+            ],
+        )
+
+        # If argparse still enforced choices, this would raise SystemExit
+        # before our fake_get_parser is even called.
+        exit_code = parser_module.main()
+        assert exit_code == 0
