@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import threading
 import time
 from typing import (
     Any,
@@ -94,6 +95,13 @@ def retry(
         def call_llm(prompt: str) -> str:
             return openai.ChatCompletion.create(...)
     """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+    if base_delay < 0 or max_delay < 0:
+        raise ValueError("base_delay and max_delay must be >= 0")
+    if exponential_base <= 0:
+        raise ValueError("exponential_base must be > 0")
+
     if retryable_exceptions is None:
         retryable_exceptions = _DEFAULT_RETRYABLE
 
@@ -172,6 +180,13 @@ def async_retry(
         async def call_llm_async(prompt: str) -> str:
             return await aclient.chat.completions.create(...)
     """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be >= 1")
+    if base_delay < 0 or max_delay < 0:
+        raise ValueError("base_delay and max_delay must be >= 0")
+    if exponential_base <= 0:
+        raise ValueError("exponential_base must be > 0")
+
     if retryable_exceptions is None:
         retryable_exceptions = _DEFAULT_RETRYABLE
 
@@ -251,41 +266,79 @@ class CircuitBreaker:
         self._failure_count = 0
         self._last_failure_time: float = 0.0
         self._state: str = "closed"  # closed | open | half-open
+        # Concurrency control for half-open single-flight behaviour
+        self._lock = threading.Lock()
+        self._trial_in_flight: bool = False
 
     @property
     def state(self) -> str:
         """Current circuit breaker state."""
-        if self._state == "open":
-            if time.time() - self._last_failure_time >= self.reset_timeout:
-                self._state = "half-open"
-        return self._state
+        with self._lock:
+            if self._state == "open":
+                if time.time() - self._last_failure_time >= self.reset_timeout:
+                    self._state = "half-open"
+            return self._state
 
     def record_success(self) -> None:
         """Record a successful call, resetting the breaker."""
-        self._failure_count = 0
-        self._state = "closed"
+        with self._lock:
+            self._failure_count = 0
+            self._state = "closed"
+            self._trial_in_flight = False
 
     def record_failure(self) -> None:
         """Record a failed call, potentially opening the breaker."""
-        self._failure_count += 1
-        self._last_failure_time = time.time()
-        if self._failure_count >= self.failure_threshold:
-            self._state = "open"
-            logger.warning(
-                "Circuit breaker '%s' opened after %d failures",
-                self.name,
-                self._failure_count,
-            )
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+            if self._failure_count >= self.failure_threshold:
+                self._state = "open"
+                self._trial_in_flight = False
+                logger.warning(
+                    "Circuit breaker '%s' opened after %d failures",
+                    self.name,
+                    self._failure_count,
+                )
+
+    def _acquire_permission(self) -> None:
+        """Check and update state before executing a protected call.
+
+        - If the breaker is open and reset_timeout has not elapsed, raise.
+        - If the breaker moves to half-open, allow exactly one in-flight
+          trial call and reject additional concurrent calls.
+        - If the breaker is closed, allow the call.
+        """
+        with self._lock:
+            # Transition open -> half-open if timeout has elapsed.
+            if self._state == "open":
+                if time.time() - self._last_failure_time >= self.reset_timeout:
+                    self._state = "half-open"
+
+            if self._state == "open":
+                # Still within timeout window.
+                raise self.CircuitBreakerOpen(
+                    f"Circuit breaker '{self.name}' is open — call rejected"
+                )
+
+            if self._state == "half-open":
+                if self._trial_in_flight:
+                    # Single-flight: only one trial call is allowed.
+                    raise self.CircuitBreakerOpen(
+                        f"Circuit breaker '{self.name}' is half-open — trial in progress"
+                    )
+                # Mark that a trial call is now in-flight.
+                self._trial_in_flight = True
+                return
+
+            # closed: allow call as normal.
+            return
 
     def __call__(self, func: F) -> F:
         """Use as a decorator around sync functions."""
 
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            if self.state == "open":
-                raise self.CircuitBreakerOpen(
-                    f"Circuit breaker '{self.name}' is open — call rejected"
-                )
+            self._acquire_permission()
             try:
                 result = func(*args, **kwargs)
                 self.record_success()
@@ -301,10 +354,7 @@ class CircuitBreaker:
 
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            if self.state == "open":
-                raise self.CircuitBreakerOpen(
-                    f"Circuit breaker '{self.name}' is open — call rejected"
-                )
+            self._acquire_permission()
             try:
                 result = await func(*args, **kwargs)
                 self.record_success()

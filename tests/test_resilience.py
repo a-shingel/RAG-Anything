@@ -140,6 +140,62 @@ class TestAsyncRetry:
             await always_fail()
 
 
+class TestRetryParameterValidation:
+    def test_retry_rejects_invalid_max_attempts(self):
+        with pytest.raises(ValueError, match="max_attempts"):
+
+            @retry(max_attempts=0)
+            def _func():
+                return "ok"
+
+        with pytest.raises(ValueError, match="max_attempts"):
+
+            @retry(max_attempts=-1)
+            def _func2():
+                return "ok"
+
+    def test_retry_rejects_invalid_delays(self):
+        with pytest.raises(ValueError, match="base_delay and max_delay"):
+
+            @retry(base_delay=-1.0)
+            def _func():
+                return "ok"
+
+        with pytest.raises(ValueError, match="base_delay and max_delay"):
+
+            @retry(max_delay=-5.0)
+            def _func2():
+                return "ok"
+
+    @pytest.mark.asyncio
+    async def test_async_retry_rejects_invalid_max_attempts(self):
+        with pytest.raises(ValueError, match="max_attempts"):
+
+            @async_retry(max_attempts=0)
+            async def _afunc():
+                return "ok"
+
+        with pytest.raises(ValueError, match="max_attempts"):
+
+            @async_retry(max_attempts=-1)
+            async def _afunc2():
+                return "ok"
+
+    @pytest.mark.asyncio
+    async def test_async_retry_rejects_invalid_delays(self):
+        with pytest.raises(ValueError, match="base_delay and max_delay"):
+
+            @async_retry(base_delay=-1.0)
+            async def _afunc():
+                return "ok"
+
+        with pytest.raises(ValueError, match="base_delay and max_delay"):
+
+            @async_retry(max_delay=-5.0)
+            async def _afunc2():
+                return "ok"
+
+
 class TestCircuitBreaker:
     def test_closed_state_allows_calls(self):
         cb = CircuitBreaker(failure_threshold=3, name="test")
@@ -194,3 +250,53 @@ class TestCircuitBreaker:
         ok_func()
         assert cb._failure_count == 0
         assert cb.state == "closed"
+
+    def test_half_open_allows_single_trial_call(self):
+        import threading
+        import time
+
+        cb = CircuitBreaker(failure_threshold=1, reset_timeout=0.05, name="test")
+
+        @cb
+        def fail_once():
+            raise RuntimeError("fail")
+
+        # Open the breaker with a single failure.
+        with pytest.raises(RuntimeError):
+            fail_once()
+        assert cb.state == "open"
+
+        # Wait for half-open transition.
+        time.sleep(0.06)
+        assert cb.state == "half-open"
+
+        executed = 0
+        results: list[str] = []
+        errors: list[Exception] = []
+
+        @cb
+        def trial():
+            nonlocal executed
+            executed += 1
+            # Keep the trial in-flight long enough for concurrent calls to hit the gate.
+            time.sleep(0.05)
+            return "ok"
+
+        def worker():
+            try:
+                res = trial()
+                results.append(res)
+            except CircuitBreaker.CircuitBreakerOpen as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Exactly one trial call should have been executed successfully.
+        assert executed == 1
+        assert results == ["ok"]
+        # The remaining concurrent calls during half-open are rejected.
+        assert len(errors) == 4
