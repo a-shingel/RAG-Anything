@@ -137,6 +137,15 @@ class ProcessingCallback:
     ) -> None:
         """Called after a query completes."""
 
+    def on_query_error(
+        self,
+        query: str,
+        mode: str = "",
+        error: BaseException | str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Called when a query fails."""
+
     # ── Document complete ─────────────────────────────────────────
     def on_document_complete(
         self,
@@ -223,6 +232,11 @@ class MetricsCallback(ProcessingCallback):
     def on_query_complete(self, query: str, duration_seconds: float = 0.0, **kw: Any) -> None:
         self.metrics["queries_executed"] += 1
         self.metrics["total_query_time"] += duration_seconds
+
+    def on_query_error(self, query: str, error: BaseException | str = "", **kw: Any) -> None:
+        self.metrics["errors"].append(
+            {"file": None, "error": str(error), "stage": "query"}
+        )
 
     def summary(self) -> str:
         """Return a human-readable summary of collected metrics."""

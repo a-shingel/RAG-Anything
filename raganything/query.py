@@ -162,10 +162,20 @@ class QueryMixin:
         self.logger.info(f"Executing text query: {query[:100]}...")
         self.logger.info(f"Query mode: {mode}")
 
-        # Call LightRAG's query method
-        result = await self.lightrag.aquery(
-            query, param=query_param, system_prompt=system_prompt
-        )
+        try:
+            # Call LightRAG's query method
+            result = await self.lightrag.aquery(
+                query, param=query_param, system_prompt=system_prompt
+            )
+        except Exception as exc:
+            if callback_manager is not None:
+                callback_manager.dispatch(
+                    "on_query_error",
+                    query=query,
+                    mode=mode,
+                    error=exc,
+                )
+            raise
 
         self.logger.info("Text query completed")
         if callback_manager is not None:
