@@ -4,11 +4,11 @@ Prompt language management for RAGAnything.
 Enables switching prompt templates between languages at runtime.
 Addresses GitHub issue #85 — prompt language support.
 
-Usage::
+Usage (process-global switch)::
 
     from raganything.prompt_manager import set_prompt_language, get_prompt_language
 
-    # Switch all prompts to Chinese
+    # Switch all prompts in this process to Chinese
     set_prompt_language("zh")
 
     # Switch back to English (default)

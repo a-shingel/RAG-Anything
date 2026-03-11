@@ -2,9 +2,8 @@
 Chinese (中文) prompt templates for multimodal content processing.
 
 Provides Chinese-language prompt templates as an alternative to the default
-English templates.  Users can activate these via
-``RAGAnythingConfig.prompt_language = "zh"`` or by calling
-``set_prompt_language("zh")``.
+English templates.  Users can activate these at process level by calling
+``set_prompt_language("zh")`` from :mod:`raganything.prompt_manager`.
 
 Addresses GitHub issue #85 — prompt language support.
 """
