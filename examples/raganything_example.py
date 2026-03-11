@@ -290,8 +290,11 @@ def main():
         "--parser",
         default=os.getenv("PARSER", "mineru"),
         help=(
-            "Parser selection (mineru, docling, paddleocr, or any "
-            "registered custom parser name)."
+            "Parser selection. Built-ins: mineru, docling, paddleocr. "
+            "Custom parsers that you register via register_parser() in the "
+            "same Python process are also accepted when using RAGAnything as "
+            "a library. This example script does not perform any automatic "
+            "plugin discovery."
         ),
     )
 

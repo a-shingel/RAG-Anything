@@ -2,11 +2,23 @@
 """
 Generic Document Parser Utility
 
-This module provides functionality for parsing PDF and image documents using MinerU 2.0 library,
-and converts the parsing results into markdown and JSON formats
+This module provides functionality for parsing documents using the built-in
+MinerU, Docling, and PaddleOCR parsers, and exposes a small registry for
+**in-process** custom parsers (see :func:`register_parser`).
 
-Note: MinerU 2.0 no longer includes LibreOffice document conversion module.
-For Office documents (.doc, .docx, .ppt, .pptx), please convert them to PDF format first.
+Important notes:
+
+- The custom parser registry is primarily intended for Python usage, where your
+  application imports a parser implementation and calls :func:`register_parser`
+  before invoking RAGAnything APIs.
+- The standalone CLI (``python -m raganything.parser`` or the installed console
+  script) does **not** perform automatic plugin discovery; it will only see
+  custom parsers that have already been registered in the current process
+  (for example via a wrapper script or :mod:`sitecustomize`).
+
+MinerU 2.0 no longer includes LibreOffice document conversion module.
+For Office documents (.doc, .docx, .ppt, .pptx), please convert them to PDF
+format first.
 """
 
 from __future__ import annotations
@@ -2325,7 +2337,10 @@ def main():
         default="mineru",
         help=(
             "Parser selection. Built-ins: mineru, docling, paddleocr. "
-            "Custom parsers registered via register_parser() are also accepted."
+            "Custom parsers registered via register_parser() in the same "
+            "Python process are also accepted when you integrate RAGAnything "
+            "as a library. The standalone CLI itself only sees parsers that "
+            "have already been registered in this process."
         ),
     )
     parser.add_argument(
