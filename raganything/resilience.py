@@ -15,15 +15,7 @@ import functools
 import logging
 import threading
 import time
-from typing import (
-    Any,
-    Callable,
-    Optional,
-    Sequence,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import Any, Callable, Optional, Sequence, Type, TypeVar
 
 logger = logging.getLogger(__name__)
 

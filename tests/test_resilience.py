@@ -1,9 +1,8 @@
 """Tests for retry and resilience utilities."""
 
-import asyncio
 import pytest
 
-from raganything.resilience import retry, async_retry, CircuitBreaker
+from raganything.resilience import CircuitBreaker, async_retry, retry
 
 
 class TestSyncRetry:
