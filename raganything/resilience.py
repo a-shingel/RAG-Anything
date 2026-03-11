@@ -30,9 +30,10 @@ logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., Any])
 
 # Default transient exceptions that are safe to retry.
-# Intentionally focused on *network / upstream* failures — local programming
-# errors (TypeError, ValueError, KeyError, etc.) and most OSError subclasses
-# (FileNotFoundError, PermissionError, ...) should not be retried by default.
+# Intentionally focused on network / upstream failures.
+# Local programming errors (TypeError, ValueError, KeyError, etc.) and most
+# OSError subclasses (FileNotFoundError, PermissionError, ...) should not be
+# retried by default.
 _DEFAULT_RETRYABLE: tuple[Type[BaseException], ...] = (
     ConnectionError,
     TimeoutError,
@@ -266,9 +267,9 @@ class CircuitBreaker:
         self.reset_timeout = reset_timeout
         self.name = name
 
-        # Exceptions that are treated as upstream failures. These mirror the
-        # retry helpers by default, so application bugs do not open the breaker
-        # unless explicitly configured to do so.
+        # Exceptions that are treated as upstream failures.
+        # By default these mirror the retry helpers so application bugs do not
+        # open the breaker unless explicitly configured to do so.
         self._failure_exceptions: tuple[Type[BaseException], ...] = tuple(
             failure_exceptions or _DEFAULT_RETRYABLE
         )

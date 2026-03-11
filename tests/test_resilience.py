@@ -204,7 +204,7 @@ class TestRetryDefaults:
         def func():
             nonlocal call_count
             call_count += 1
-            # Local filesystem error: should not be treated as transient
+            # Local filesystem error: should not be treated as a transient
             # network failure by default.
             raise FileNotFoundError("no such file")
 
@@ -277,8 +277,8 @@ class TestCircuitBreaker:
             # Local programming error, not an upstream/network failure.
             raise TypeError("bug")
 
-        # The error propagates, but the breaker should remain closed and
-        # not count this as an upstream failure.
+        # The error propagates, but the breaker should remain closed and not
+        # count this as an upstream failure.
         with pytest.raises(TypeError):
             buggy()
 
