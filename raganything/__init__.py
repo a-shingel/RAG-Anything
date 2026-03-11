@@ -110,6 +110,7 @@ if "set_prompt_language" in globals():
         ]
     )
 
+
 def get_version() -> str:
     """Return the RAG-Anything version string."""
     return __version__

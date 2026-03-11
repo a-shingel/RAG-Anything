@@ -379,7 +379,7 @@ class TestBatchParserInit:
 
         bp = BatchParser(parser_type="mineru", skip_installation_check=True)
         supported = bp.filter_supported_files([str(tmp_path)], recursive=False)
-        
+
         supported_names = [Path(f).name for f in supported]
         assert "doc.pdf" in supported_names
         assert "img.png" in supported_names
