@@ -196,6 +196,24 @@ class TestRetryParameterValidation:
                 return "ok"
 
 
+class TestRetryDefaults:
+    def test_default_retry_does_not_retry_oserror_subclasses(self):
+        call_count = 0
+
+        @retry(max_attempts=3, base_delay=0.01)
+        def func():
+            nonlocal call_count
+            call_count += 1
+            # Local filesystem error: should not be treated as transient
+            # network failure by default.
+            raise FileNotFoundError("no such file")
+
+        with pytest.raises(FileNotFoundError):
+            func()
+        # Only the initial call should have been attempted.
+        assert call_count == 1
+
+
 class TestCircuitBreaker:
     def test_closed_state_allows_calls(self):
         cb = CircuitBreaker(failure_threshold=3, name="test")
@@ -250,6 +268,22 @@ class TestCircuitBreaker:
         ok_func()
         assert cb._failure_count == 0
         assert cb.state == "closed"
+
+    def test_application_error_does_not_trip_breaker(self):
+        cb = CircuitBreaker(failure_threshold=1, reset_timeout=0.1, name="test")
+
+        @cb
+        def buggy():
+            # Local programming error, not an upstream/network failure.
+            raise TypeError("bug")
+
+        # The error propagates, but the breaker should remain closed and
+        # not count this as an upstream failure.
+        with pytest.raises(TypeError):
+            buggy()
+
+        assert cb.state == "closed"
+        assert cb._failure_count == 0
 
     def test_half_open_allows_single_trial_call(self):
         import threading

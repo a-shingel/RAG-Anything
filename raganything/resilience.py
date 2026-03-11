@@ -29,11 +29,13 @@ logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-# Default transient exceptions that are safe to retry
+# Default transient exceptions that are safe to retry.
+# Intentionally focused on *network / upstream* failures — local programming
+# errors (TypeError, ValueError, KeyError, etc.) and most OSError subclasses
+# (FileNotFoundError, PermissionError, ...) should not be retried by default.
 _DEFAULT_RETRYABLE: tuple[Type[BaseException], ...] = (
     ConnectionError,
     TimeoutError,
-    OSError,
 )
 
 try:
@@ -258,10 +260,18 @@ class CircuitBreaker:
         failure_threshold: int = 5,
         reset_timeout: float = 60.0,
         name: str = "default",
+        failure_exceptions: Optional[Sequence[Type[BaseException]]] = None,
     ) -> None:
         self.failure_threshold = failure_threshold
         self.reset_timeout = reset_timeout
         self.name = name
+
+        # Exceptions that are treated as upstream failures. These mirror the
+        # retry helpers by default, so application bugs do not open the breaker
+        # unless explicitly configured to do so.
+        self._failure_exceptions: tuple[Type[BaseException], ...] = tuple(
+            failure_exceptions or _DEFAULT_RETRYABLE
+        )
 
         self._failure_count = 0
         self._last_failure_time: float = 0.0
@@ -343,8 +353,18 @@ class CircuitBreaker:
                 result = func(*args, **kwargs)
                 self.record_success()
                 return result
-            except Exception as exc:
+            except tuple(self._failure_exceptions):
+                # Upstream / transient failure: contributes towards opening
+                # the breaker.
                 self.record_failure()
+                raise
+            except Exception:
+                # Application bug or non-transient local error: do not treat as
+                # upstream instability. We still need to clear the half-open
+                # trial gate so that future calls are not permanently blocked.
+                with self._lock:
+                    if self._state == "half-open":
+                        self._trial_in_flight = False
                 raise
 
         return wrapper  # type: ignore[return-value]
@@ -359,8 +379,13 @@ class CircuitBreaker:
                 result = await func(*args, **kwargs)
                 self.record_success()
                 return result
-            except Exception as exc:
+            except tuple(self._failure_exceptions):
                 self.record_failure()
+                raise
+            except Exception:
+                with self._lock:
+                    if self._state == "half-open":
+                        self._trial_in_flight = False
                 raise
 
         return wrapper  # type: ignore[return-value]
