@@ -400,12 +400,8 @@ class BatchMixin:
 
         processing_time = time.time() - start_time
 
-        successful_rag_files = len(
-            [r for r in rag_results.values() if r["processed"]]
-        )
-        failed_rag_files = len(
-            [r for r in rag_results.values() if not r["processed"]]
-        )
+        successful_rag_files = len([r for r in rag_results.values() if r["processed"]])
+        failed_rag_files = len([r for r in rag_results.values() if not r["processed"]])
 
         if callback_manager is not None:
             callback_manager.dispatch(

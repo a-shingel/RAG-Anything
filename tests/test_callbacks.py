@@ -33,7 +33,9 @@ class RecordingCallback(ProcessingCallback):
     def on_multimodal_start(self, file_path, item_count=0, **kw):
         self.events.append(("multimodal_start", file_path, item_count))
 
-    def on_multimodal_item_complete(self, file_path, item_index=0, item_type="", total_items=0, **kw):
+    def on_multimodal_item_complete(
+        self, file_path, item_index=0, item_type="", total_items=0, **kw
+    ):
         self.events.append(("multimodal_item", file_path, item_index, item_type))
 
     def on_multimodal_complete(self, file_path, processed_count=0, **kw):
@@ -149,7 +151,9 @@ class TestMetricsCallback:
         m.on_parse_complete(file_path="a.pdf", content_blocks=10, duration_seconds=1.5)
         m.on_parse_complete(file_path="b.pdf", content_blocks=5, duration_seconds=0.5)
         m.on_text_insert_complete(file_path="a.pdf", duration_seconds=2.0)
-        m.on_multimodal_complete(file_path="a.pdf", processed_count=3, duration_seconds=3.0)
+        m.on_multimodal_complete(
+            file_path="a.pdf", processed_count=3, duration_seconds=3.0
+        )
         m.on_document_complete(file_path="a.pdf")
         m.on_document_complete(file_path="b.pdf")
         m.on_document_error(file_path="c.pdf", error="parse failed", stage="parsing")

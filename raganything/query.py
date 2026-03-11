@@ -7,6 +7,7 @@ Contains all query-related methods for both text and multimodal queries
 import json
 import hashlib
 import re
+import time
 from typing import Dict, List, Any
 from pathlib import Path
 from lightrag import QueryParam

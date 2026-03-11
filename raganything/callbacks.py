@@ -166,9 +166,7 @@ class ProcessingCallback:
         """Called when document processing fails at any stage."""
 
     # ── Batch processing ──────────────────────────────────────────
-    def on_batch_start(
-        self, file_count: int = 0, **kwargs: Any
-    ) -> None:
+    def on_batch_start(self, file_count: int = 0, **kwargs: Any) -> None:
         """Called when batch processing begins."""
 
     def on_batch_complete(
@@ -209,31 +207,55 @@ class MetricsCallback(ProcessingCallback):
             "errors": [],
         }
 
-    def on_parse_complete(self, file_path: str, content_blocks: int = 0, duration_seconds: float = 0.0, **kw: Any) -> None:
+    def on_parse_complete(
+        self,
+        file_path: str,
+        content_blocks: int = 0,
+        duration_seconds: float = 0.0,
+        **kw: Any,
+    ) -> None:
         self.metrics["total_content_blocks"] += content_blocks
         self.metrics["total_parse_time"] += duration_seconds
 
-    def on_text_insert_complete(self, file_path: str, duration_seconds: float = 0.0, **kw: Any) -> None:
+    def on_text_insert_complete(
+        self, file_path: str, duration_seconds: float = 0.0, **kw: Any
+    ) -> None:
         self.metrics["total_insert_time"] += duration_seconds
 
-    def on_multimodal_complete(self, file_path: str, processed_count: int = 0, duration_seconds: float = 0.0, **kw: Any) -> None:
+    def on_multimodal_complete(
+        self,
+        file_path: str,
+        processed_count: int = 0,
+        duration_seconds: float = 0.0,
+        **kw: Any,
+    ) -> None:
         self.metrics["total_multimodal_items"] += processed_count
         self.metrics["total_multimodal_time"] += duration_seconds
 
     def on_document_complete(self, file_path: str, **kw: Any) -> None:
         self.metrics["documents_processed"] += 1
 
-    def on_document_error(self, file_path: str, error: BaseException | str = "", stage: str = "", **kw: Any) -> None:
+    def on_document_error(
+        self,
+        file_path: str,
+        error: BaseException | str = "",
+        stage: str = "",
+        **kw: Any,
+    ) -> None:
         self.metrics["documents_failed"] += 1
         self.metrics["errors"].append(
             {"file": file_path, "error": str(error), "stage": stage}
         )
 
-    def on_query_complete(self, query: str, duration_seconds: float = 0.0, **kw: Any) -> None:
+    def on_query_complete(
+        self, query: str, duration_seconds: float = 0.0, **kw: Any
+    ) -> None:
         self.metrics["queries_executed"] += 1
         self.metrics["total_query_time"] += duration_seconds
 
-    def on_query_error(self, query: str, error: BaseException | str = "", **kw: Any) -> None:
+    def on_query_error(
+        self, query: str, error: BaseException | str = "", **kw: Any
+    ) -> None:
         self.metrics["errors"].append(
             {"file": None, "error": str(error), "stage": "query"}
         )
