@@ -23,13 +23,19 @@ class TestSetPromptLanguage:
     def test_switch_to_chinese(self):
         set_prompt_language("zh")
         assert get_prompt_language() == "zh"
-        assert "请" in PROMPTS["QUERY_IMAGE_DESCRIPTION"] or "图" in PROMPTS["QUERY_IMAGE_DESCRIPTION"]
+        assert (
+            "请" in PROMPTS["QUERY_IMAGE_DESCRIPTION"]
+            or "图" in PROMPTS["QUERY_IMAGE_DESCRIPTION"]
+        )
 
     def test_switch_back_to_english(self):
         set_prompt_language("zh")
         set_prompt_language("en")
         assert get_prompt_language() == "en"
-        assert "Please" in PROMPTS["QUERY_IMAGE_DESCRIPTION"] or "briefly" in PROMPTS["QUERY_IMAGE_DESCRIPTION"]
+        assert (
+            "Please" in PROMPTS["QUERY_IMAGE_DESCRIPTION"]
+            or "briefly" in PROMPTS["QUERY_IMAGE_DESCRIPTION"]
+        )
 
     def test_unknown_language_raises(self):
         with pytest.raises(ValueError, match="Unknown prompt language"):
@@ -66,7 +72,10 @@ class TestRegisterLanguage:
         set_prompt_language("fr")
         assert PROMPTS["IMAGE_ANALYSIS_SYSTEM"] == "Analyse d'image"
         # Missing keys should fallback to English
-        assert "expert" in PROMPTS["TABLE_ANALYSIS_SYSTEM"].lower() or "analyst" in PROMPTS["TABLE_ANALYSIS_SYSTEM"].lower()
+        assert (
+            "expert" in PROMPTS["TABLE_ANALYSIS_SYSTEM"].lower()
+            or "analyst" in PROMPTS["TABLE_ANALYSIS_SYSTEM"].lower()
+        )
 
     def test_mixed_case_registration(self):
         custom = {"IMAGE_ANALYSIS_SYSTEM": "Analyse d'image"}
