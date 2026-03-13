@@ -289,8 +289,13 @@ def main():
     parser.add_argument(
         "--parser",
         default=os.getenv("PARSER", "mineru"),
-        choices=["mineru", "docling", "paddleocr"],
-        help="Parser selection",
+        help=(
+            "Parser selection. Built-ins: mineru, docling, paddleocr. "
+            "Custom parsers that you register via register_parser() in the "
+            "same Python process are also accepted when using RAGAnything as "
+            "a library. This example script does not perform any automatic "
+            "plugin discovery."
+        ),
     )
 
     args = parser.parse_args()

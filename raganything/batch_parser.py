@@ -382,9 +382,14 @@ def main():
     parser.add_argument("--output", "-o", required=True, help="Output directory")
     parser.add_argument(
         "--parser",
-        choices=list(SUPPORTED_PARSERS),
         default="mineru",
-        help="Parser to use",
+        help=(
+            "Parser to use. Built-ins: mineru, docling, paddleocr. "
+            "When using RAGAnything as a library, any custom parsers that you "
+            "have registered via register_parser() in the current process "
+            "are also accepted. The standalone CLI itself does not perform "
+            "plugin discovery."
+        ),
     )
     parser.add_argument(
         "--method",
