@@ -409,7 +409,7 @@ async def main():
     embedding_func = EmbeddingFunc(
         embedding_dim=3072,
         max_token_size=8192,
-        func=lambda texts: openai_embed(
+        func=lambda texts: openai_embed.func(
             texts,
             model="text-embedding-3-large",
             api_key=api_key,
@@ -485,7 +485,7 @@ async def process_multimodal_content():
         embedding_func=EmbeddingFunc(
             embedding_dim=3072,
             max_token_size=8192,
-            func=lambda texts: openai_embed(
+            func=lambda texts: openai_embed.func(
                 texts,
                 model="text-embedding-3-large",
                 api_key=api_key,
@@ -711,7 +711,7 @@ async def load_existing_lightrag():
         embedding_func=EmbeddingFunc(
             embedding_dim=3072,
             max_token_size=8192,
-            func=lambda texts: openai_embed(
+            func=lambda texts: openai_embed.func(
                 texts,
                 model="text-embedding-3-large",
                 api_key=api_key,
@@ -874,7 +874,7 @@ async def insert_content_list_example():
     embedding_func = EmbeddingFunc(
         embedding_dim=3072,
         max_token_size=8192,
-        func=lambda texts: openai_embed(
+        func=lambda texts: openai_embed.func(
             texts,
             model="text-embedding-3-large",
             api_key=api_key,
