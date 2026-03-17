@@ -2317,6 +2317,8 @@ def get_parser(parser_type: str) -> Parser:
         f"Unsupported parser type: {parser_type}. "
         f"Supported parsers: {', '.join(get_supported_parsers())}"
     )
+
+
 def main():
     """
     Main function to run the document parser from command line

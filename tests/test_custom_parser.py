@@ -24,7 +24,9 @@ class DummyParser(Parser):
         return [{"type": "text", "text": "dummy parsed content", "page_idx": 0}]
 
     def parse_pdf(self, pdf_path, output_dir="./output", method="auto", **kw):
-        return self.parse_document(file_path=pdf_path, output_dir=output_dir, method=method, **kw)
+        return self.parse_document(
+            file_path=pdf_path, output_dir=output_dir, method=method, **kw
+        )
 
 
 class AnotherParser(Parser):
@@ -144,7 +146,9 @@ class TestGetParserFallback:
         register_parser("dummy", DummyParser)
         parser = get_parser("dummy")
         content = parser.parse_document("fake.pdf")
-        assert content == [{"type": "text", "text": "dummy parsed content", "page_idx": 0}]
+        assert content == [
+            {"type": "text", "text": "dummy parsed content", "page_idx": 0}
+        ]
 
 
 class TestCliIntegration:

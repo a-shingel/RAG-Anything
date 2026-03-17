@@ -15,7 +15,7 @@ import time
 
 from tqdm import tqdm
 
-from .parser import SUPPORTED_PARSERS, get_parser
+from .parser import get_parser
 
 
 @dataclass
