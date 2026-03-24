@@ -2,7 +2,9 @@ import ast
 from pathlib import Path
 
 
-PROCESSOR_SOURCE = Path(__file__).resolve().parent.parent / "raganything" / "processor.py"
+PROCESSOR_SOURCE = (
+    Path(__file__).resolve().parent.parent / "raganything" / "processor.py"
+)
 
 
 def _load_merge_logic_function_source():

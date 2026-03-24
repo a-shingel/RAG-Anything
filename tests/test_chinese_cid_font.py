@@ -38,7 +38,13 @@ class TestChineseCIDFont:
         from reportlab.pdfbase.cidfonts import UnicodeCIDFont
         from reportlab.pdfbase import pdfmetrics
 
-        valid_cjk = ["STSong-Light", "MSung-Light", "HeiseiMin-W3", "HeiseiKakuGo-W5", "HYSMyeongJo-Medium"]
+        valid_cjk = [
+            "STSong-Light",
+            "MSung-Light",
+            "HeiseiMin-W3",
+            "HeiseiKakuGo-W5",
+            "HYSMyeongJo-Medium",
+        ]
         for name in valid_cjk:
             font = UnicodeCIDFont(name)
             pdfmetrics.registerFont(font)

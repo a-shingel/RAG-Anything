@@ -8,7 +8,6 @@ import asyncio
 import sys
 from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -90,6 +89,7 @@ class TestCloseEventLoop:
 
     def test_finalize_raises(self):
         """Should silently handle exceptions during finalize."""
+
         async def fail_finalize():
             raise RuntimeError("storage error")
 
