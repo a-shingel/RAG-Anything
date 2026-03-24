@@ -26,7 +26,7 @@ from raganything.prompt import PROMPTS
 logger = logging.getLogger(__name__)
 
 # Store the original English prompts as the canonical fallback
-_ENGLISH_PROMPTS: Dict[str, Any] = dict(PROMPTS)
+_ENGLISH_PROMPTS: Dict[str, Any] = PROMPTS.snapshot()
 
 # Registry of available prompt languages
 _PROMPT_LANGUAGES: Dict[str, Dict[str, Any]] = {
@@ -77,7 +77,7 @@ def register_prompt_language(language_code: str, prompts: Dict[str, Any]) -> Non
         register_prompt_language("ja", my_prompts)
     """
     lang = _normalize_language_code(language_code)
-    _PROMPT_LANGUAGES[lang] = prompts
+    _PROMPT_LANGUAGES[lang] = dict(prompts)
     logger.info("Registered prompt language '%s' with %d templates", lang, len(prompts))
 
 
@@ -114,7 +114,9 @@ def set_prompt_language(language: str) -> None:
 
     target_prompts = _PROMPT_LANGUAGES[lang]
 
-    # Compute the resolved prompt set first, then atomically swap under a lock.
+    # Compute the resolved prompt set first, then atomically swap the active
+    # prompt snapshot under a lock so readers never observe a cleared/partial
+    # dictionary.
     resolved: Dict[str, Any] = {}
     for key in _ENGLISH_PROMPTS:
         if key in target_prompts:
@@ -123,8 +125,7 @@ def set_prompt_language(language: str) -> None:
             resolved[key] = _ENGLISH_PROMPTS[key]
 
     with _PROMPTS_LOCK:
-        PROMPTS.clear()
-        PROMPTS.update(resolved)
+        PROMPTS.swap(resolved)
         _current_language = lang
 
     logger.info("Prompt language set to '%s'", lang)
@@ -139,8 +140,7 @@ def reset_prompts() -> None:
     """Reset all prompts back to the default English templates."""
     global _current_language
     with _PROMPTS_LOCK:
-        PROMPTS.clear()
-        PROMPTS.update(_ENGLISH_PROMPTS)
+        PROMPTS.swap(_ENGLISH_PROMPTS)
         _current_language = "en"
     logger.info("Prompts reset to English defaults")
 

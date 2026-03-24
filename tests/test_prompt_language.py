@@ -1,6 +1,7 @@
 """Tests for multilingual prompt template system (addresses #85)."""
 
 import pytest
+import raganything.prompt_manager as prompt_manager_module
 
 from raganything.prompt import PROMPTS
 from raganything.prompt_manager import (
@@ -90,3 +91,46 @@ class TestGetAvailableLanguages:
         langs = get_available_languages()
         assert "en" in langs
         assert "zh" in langs
+
+
+class TestAtomicPromptSwitches:
+    def test_set_and_reset_use_atomic_swap(self, monkeypatch):
+        class FakePrompts:
+            def __init__(self, initial):
+                self.data = dict(initial)
+                self.swap_calls = []
+
+            def snapshot(self):
+                return dict(self.data)
+
+            def swap(self, prompts):
+                snapshot = dict(prompts)
+                self.swap_calls.append(snapshot)
+                self.data = snapshot
+
+        english = {"A": "english-a", "B": "english-b"}
+        fake_prompts = FakePrompts(english)
+
+        monkeypatch.setattr(prompt_manager_module, "PROMPTS", fake_prompts)
+        monkeypatch.setattr(prompt_manager_module, "_ENGLISH_PROMPTS", dict(english))
+        monkeypatch.setattr(
+            prompt_manager_module,
+            "_PROMPT_LANGUAGES",
+            {
+                "en": dict(english),
+                "fr": {"A": "francais-a"},
+            },
+        )
+        monkeypatch.setattr(prompt_manager_module, "_current_language", "en")
+
+        prompt_manager_module.set_prompt_language("fr")
+        assert fake_prompts.data == {"A": "francais-a", "B": "english-b"}
+        assert prompt_manager_module.get_prompt_language() == "fr"
+
+        prompt_manager_module.reset_prompts()
+        assert fake_prompts.data == english
+        assert prompt_manager_module.get_prompt_language() == "en"
+        assert fake_prompts.swap_calls == [
+            {"A": "francais-a", "B": "english-b"},
+            english,
+        ]
