@@ -346,38 +346,22 @@ class Parser:
                     heading_style.fontName = "WenQuanYi"
 
                 # Try to register a font that supports Chinese characters
+                # UnicodeCIDFont only supports specific CID font names:
+                #   STSong-Light (Chinese), MSung-Light (Chinese Traditional),
+                #   HeiseiMin-W3 / HeiseiKakuGo-W5 (Japanese),
+                #   HYSMyeongJo-Medium (Korean)
+                # System font names like "SimSun", "SimHei", "STHeiti" are
+                # NOT valid CID names and silently fail (#24).
                 try:
-                    # Try to use system fonts that support Chinese
-                    import platform
+                    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 
-                    system = platform.system()
-                    if system == "Windows":
-                        # Try common Windows fonts
-                        for font_name in ["SimSun", "SimHei", "Microsoft YaHei"]:
-                            try:
-                                from reportlab.pdfbase.cidfonts import (
-                                    UnicodeCIDFont,
-                                )
-
-                                pdfmetrics.registerFont(UnicodeCIDFont(font_name))
-                                normal_style.fontName = font_name
-                                heading_style.fontName = font_name
-                                break
-                            except Exception:
-                                continue
-                    elif system == "Darwin":  # macOS
-                        for font_name in ["STSong-Light", "STHeiti"]:
-                            try:
-                                from reportlab.pdfbase.cidfonts import (
-                                    UnicodeCIDFont,
-                                )
-
-                                pdfmetrics.registerFont(UnicodeCIDFont(font_name))
-                                normal_style.fontName = font_name
-                                heading_style.fontName = font_name
-                                break
-                            except Exception:
-                                continue
+                    # STSong-Light is the standard CID font for Simplified
+                    # Chinese and works cross-platform (reportlab ships the
+                    # required CID resources internally).
+                    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+                    if not support_chinese:
+                        normal_style.fontName = "STSong-Light"
+                        heading_style.fontName = "STSong-Light"
                 except Exception:
                     pass  # Use default fonts if Chinese font setup fails
 
