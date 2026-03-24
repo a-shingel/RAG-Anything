@@ -1193,31 +1193,32 @@ class ProcessorMixin:
 
             if current_doc_entities is None:
                 # Create new document entry
-                entity_names = list(
+                entity_names = [
                     entity_data["entity_name"]
                     for entity_data in entities_to_store.values()
-                )
+                ]
                 doc_entities_data = {
                     "entity_names": entity_names,
                     "count": len(entity_names),
                     "update_time": int(time.time()),
                 }
             else:
-                # Update existing document entry
-                existing_entity_names = set(
+                # Update existing document entry while preserving any existing
+                # metadata fields stored by the text pipeline.
+                existing_entity_names = list(
                     current_doc_entities.get("entity_names", [])
                 )
-                new_entity_names = [
-                    entity_data["entity_name"]
-                    for entity_data in entities_to_store.values()
-                ]
+                seen_entity_names = set(existing_entity_names)
 
-                # Add new multimodal entities to the list (avoid duplicates)
-                for entity_name in new_entity_names:
-                    existing_entity_names.add(entity_name)
+                for entity_data in entities_to_store.values():
+                    entity_name = entity_data["entity_name"]
+                    if entity_name not in seen_entity_names:
+                        existing_entity_names.append(entity_name)
+                        seen_entity_names.add(entity_name)
 
                 doc_entities_data = {
-                    "entity_names": list(existing_entity_names),
+                    **current_doc_entities,
+                    "entity_names": existing_entity_names,
                     "count": len(existing_entity_names),
                     "update_time": int(time.time()),
                 }
