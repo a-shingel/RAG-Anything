@@ -256,6 +256,26 @@ class TestCircuitBreaker:
         time.sleep(0.06)
         assert cb.state == "half-open"
 
+    def test_failure_threshold_resets_outside_window(self):
+        import time
+
+        cb = CircuitBreaker(failure_threshold=2, reset_timeout=0.05, name="test")
+
+        @cb
+        def fail_func():
+            raise ConnectionError("fail")
+
+        with pytest.raises(ConnectionError):
+            fail_func()
+
+        time.sleep(0.06)
+
+        with pytest.raises(ConnectionError):
+            fail_func()
+
+        assert cb.state == "closed"
+        assert cb._failure_count == 1
+
     def test_resets_on_success(self):
         cb = CircuitBreaker(failure_threshold=3, name="test")
         cb._failure_count = 2

@@ -292,8 +292,21 @@ class CircuitBreaker:
     def record_failure(self) -> None:
         """Record a failed call, potentially opening the breaker."""
         with self._lock:
-            self._failure_count += 1
-            self._last_failure_time = time.time()
+            now = time.time()
+            if self._state == "half-open":
+                # A failed half-open probe should reopen the breaker immediately.
+                self._failure_count = self.failure_threshold
+            else:
+                # Only failures within the configured window contribute towards
+                # opening the breaker. A stale failure should not count against
+                # the next request burst.
+                if (
+                    self._last_failure_time
+                    and now - self._last_failure_time >= self.reset_timeout
+                ):
+                    self._failure_count = 0
+                self._failure_count += 1
+            self._last_failure_time = now
             if self._failure_count >= self.failure_threshold:
                 self._state = "open"
                 self._trial_in_flight = False
