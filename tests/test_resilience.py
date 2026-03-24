@@ -229,10 +229,10 @@ class TestCircuitBreaker:
 
         @cb
         def fail_func():
-            raise RuntimeError("fail")
+            raise ConnectionError("fail")
 
         for _ in range(2):
-            with pytest.raises(RuntimeError):
+            with pytest.raises(ConnectionError):
                 fail_func()
 
         assert cb.state == "open"
@@ -247,9 +247,9 @@ class TestCircuitBreaker:
 
         @cb
         def fail_func():
-            raise RuntimeError("fail")
+            raise ConnectionError("fail")
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ConnectionError):
             fail_func()
 
         assert cb.state == "open"
@@ -292,10 +292,10 @@ class TestCircuitBreaker:
 
         @cb
         def fail_once():
-            raise RuntimeError("fail")
+            raise ConnectionError("fail")
 
         # Open the breaker with a single failure.
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ConnectionError):
             fail_once()
         assert cb.state == "open"
 
