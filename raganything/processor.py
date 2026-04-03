@@ -1678,6 +1678,7 @@ class ProcessorMixin:
         doc_pre_id = f"doc-pre-{file_name}"
         pipeline_status = None
         pipeline_status_lock = None
+        current_doc_status = {}  # initialised here so the except block can always unpack it
 
         if parser:
             self.config.parser = parser
@@ -1685,9 +1686,9 @@ class ProcessorMixin:
         try:
             # Ensure LightRAG is initialized before accessing its storages
             result = await self._ensure_lightrag_initialized()
-            if not result["success"]:
+            if not result or not result.get("success"):
                 self.logger.error(
-                    f"LightRAG initialization failed: {result.get('error')}; "
+                    f"LightRAG initialization failed: {(result or {}).get('error')}; "
                     f"skipping document processing for {file_path}"
                 )
                 return False
@@ -1757,9 +1758,10 @@ class ProcessorMixin:
                     file_path, output_dir, parse_method, display_stats, **kwargs
                 )
             except MineruExecutionError as e:
-                error_message = e.error_msg
                 if isinstance(e.error_msg, list):
-                    error_message = "\n".join(e.error_msg)
+                    error_message = "\n".join(str(m) for m in e.error_msg)
+                else:
+                    error_message = str(e.error_msg)
                 await self.lightrag.doc_status.upsert(
                     {
                         doc_pre_id: {
