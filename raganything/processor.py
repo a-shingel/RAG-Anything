@@ -531,6 +531,12 @@ class ProcessorMixin:
                 doc_id=doc_id,
             )
 
+        # Ensure LightRAG is initialized before accessing its storages
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            self.logger.error("LightRAG initialization failed; skipping multimodal processing")
+            return
+
         # Check multimodal processing status - handle LightRAG's early DocStatus.PROCESSED marking
         try:
             existing_doc_status = await self.lightrag.doc_status.get_by_id(doc_id)
@@ -573,9 +579,6 @@ class ProcessorMixin:
                 pipeline_status["history_messages"].append(log_message)
 
         try:
-            # Ensure LightRAG is initialized
-            await self._ensure_lightrag_initialized()
-
             await self._process_multimodal_content_batch_type_aware(
                 multimodal_items=multimodal_items, file_path=file_path, doc_id=doc_id
             )
@@ -1536,7 +1539,11 @@ class ProcessorMixin:
 
         try:
             # Ensure LightRAG is initialized
-            await self._ensure_lightrag_initialized()
+            init_result = await self._ensure_lightrag_initialized()
+            if not init_result or not init_result.get("success"):
+                raise RuntimeError(
+                    f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+                )
 
             # Use config defaults if not provided
             if output_dir is None:
@@ -1675,20 +1682,13 @@ class ProcessorMixin:
         if parser:
             self.config.parser = parser
 
-        current_doc_status = await self.lightrag.doc_status.get_by_id(doc_pre_id)
-
         try:
-            # Ensure LightRAG is initialized
+            # Ensure LightRAG is initialized before accessing its storages
             result = await self._ensure_lightrag_initialized()
             if not result["success"]:
-                await self.lightrag.doc_status.upsert(
-                    {
-                        doc_pre_id: {
-                            **current_doc_status,
-                            "status": DocStatus.FAILED,
-                            "error_msg": result["error"],
-                        }
-                    }
+                self.logger.error(
+                    f"LightRAG initialization failed: {result.get('error')}; "
+                    f"skipping document processing for {file_path}"
                 )
                 return False
 
@@ -1903,7 +1903,11 @@ class ProcessorMixin:
         doc_start_time = time.time()
 
         # Ensure LightRAG is initialized
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         # Use config defaults if not provided
         if display_stats is None:

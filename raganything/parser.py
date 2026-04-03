@@ -25,6 +25,7 @@ from __future__ import annotations
 
 
 import os
+import platform
 import hashlib
 import json
 import argparse
@@ -41,10 +42,9 @@ from typing import (
     Tuple,
     Any,
     Iterator,
-    TypeVar,
 )
 
-T = TypeVar("T")
+_IS_WINDOWS: bool = platform.system() == "Windows"
 
 
 class MineruExecutionError(Exception):
@@ -140,8 +140,6 @@ class Parser:
                 )
 
                 # Prepare subprocess parameters to hide console window on Windows
-                import platform
-
                 # Try LibreOffice commands in order of preference
                 commands_to_try = ["libreoffice", "soffice"]
 
@@ -168,7 +166,7 @@ class Parser:
                         }
 
                         # Hide console window on Windows
-                        if platform.system() == "Windows":
+                        if _IS_WINDOWS:
                             convert_subprocess_kwargs["creationflags"] = (
                                 subprocess.CREATE_NO_WINDOW
                             )
@@ -698,7 +696,6 @@ class MineruParser(Parser):
 
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
             import threading
             from queue import Queue, Empty
 
@@ -721,7 +718,7 @@ class MineruParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             # Function to read output from subprocess and add to queue
@@ -1311,8 +1308,6 @@ class MineruParser(Parser):
         """
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
-
             subprocess_kwargs = {
                 "capture_output": True,
                 "text": True,
@@ -1322,7 +1317,7 @@ class MineruParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             result = subprocess.run(["mineru", "--version"], **subprocess_kwargs)
@@ -1496,8 +1491,6 @@ class DoclingParser(Parser):
 
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
-
             env = None
             if custom_env:
                 env = os.environ.copy()
@@ -1513,7 +1506,7 @@ class DoclingParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 docling_subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             result = subprocess.run(cmd, **docling_subprocess_kwargs)
@@ -1805,8 +1798,6 @@ class DoclingParser(Parser):
         """
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
-
             subprocess_kwargs = {
                 "capture_output": True,
                 "text": True,
@@ -1816,7 +1807,7 @@ class DoclingParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             result = subprocess.run(["docling", "--version"], **subprocess_kwargs)
