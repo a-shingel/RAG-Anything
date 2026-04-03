@@ -235,7 +235,11 @@ class QueryMixin:
             )
         """
         # Ensure LightRAG is initialized
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         self.logger.info(f"Executing multimodal query: {query[:100]}...")
         self.logger.info(f"Query mode: {mode}")
@@ -360,7 +364,11 @@ class QueryMixin:
             )
 
         # Ensure LightRAG is initialized
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         self.logger.info(f"Executing VLM enhanced query: {query[:100]}...")
 
