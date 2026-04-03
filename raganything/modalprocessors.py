@@ -544,6 +544,30 @@ class BaseModalProcessor:
             chunk_results,
         )
 
+    @staticmethod
+    def _strip_thinking_tags(text: str) -> str:
+        """Remove <think>/<thinking> tags produced by reasoning models.
+
+        Models such as DeepSeek-R1 and Qwen2.5-think wrap their internal
+        chain-of-thought in ``<think>…</think>`` or ``<thinking>…</thinking>``
+        blocks before emitting the final answer.  When JSON parsing fails and
+        the raw LLM response is used as a fallback, storing the entire response
+        (including the reasoning preamble) pollutes the knowledge graph with
+        internal model thoughts rather than actual content descriptions.
+
+        This helper strips those blocks so that only the final answer text is
+        stored or surfaced to callers.
+        """
+        import re
+
+        cleaned = re.sub(
+            r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE
+        )
+        cleaned = re.sub(
+            r"<thinking>.*?</thinking>", "", cleaned, flags=re.DOTALL | re.IGNORECASE
+        )
+        return cleaned.strip()
+
     def _robust_json_parse(self, response: str) -> dict:
         """Robust JSON parsing with multiple fallback strategies"""
 
@@ -1019,14 +1043,15 @@ class ImageModalProcessor(BaseModalProcessor):
         except (json.JSONDecodeError, AttributeError, ValueError) as e:
             logger.error(f"Error parsing image analysis response: {e}")
             logger.debug(f"Raw response: {response}")
+            cleaned = self._strip_thinking_tags(response)
             fallback_entity = {
                 "entity_name": entity_name
                 if entity_name
-                else f"image_{compute_mdhash_id(response)}",
+                else f"image_{compute_mdhash_id(cleaned)}",
                 "entity_type": "image",
-                "summary": response[:100] + "..." if len(response) > 100 else response,
+                "summary": cleaned[:100] + "..." if len(cleaned) > 100 else cleaned,
             }
-            return response, fallback_entity
+            return cleaned, fallback_entity
 
 
 class TableModalProcessor(BaseModalProcessor):
@@ -1213,14 +1238,15 @@ class TableModalProcessor(BaseModalProcessor):
         except (json.JSONDecodeError, AttributeError, ValueError) as e:
             logger.error(f"Error parsing table analysis response: {e}")
             logger.debug(f"Raw response: {response}")
+            cleaned = self._strip_thinking_tags(response)
             fallback_entity = {
                 "entity_name": entity_name
                 if entity_name
-                else f"table_{compute_mdhash_id(response)}",
+                else f"table_{compute_mdhash_id(cleaned)}",
                 "entity_type": "table",
-                "summary": response[:100] + "..." if len(response) > 100 else response,
+                "summary": cleaned[:100] + "..." if len(cleaned) > 100 else cleaned,
             }
-            return response, fallback_entity
+            return cleaned, fallback_entity
 
 
 class EquationModalProcessor(BaseModalProcessor):
@@ -1397,14 +1423,15 @@ class EquationModalProcessor(BaseModalProcessor):
         except (json.JSONDecodeError, AttributeError, ValueError) as e:
             logger.error(f"Error parsing equation analysis response: {e}")
             logger.debug(f"Raw response: {response}")
+            cleaned = self._strip_thinking_tags(response)
             fallback_entity = {
                 "entity_name": entity_name
                 if entity_name
-                else f"equation_{compute_mdhash_id(response)}",
+                else f"equation_{compute_mdhash_id(cleaned)}",
                 "entity_type": "equation",
-                "summary": response[:100] + "..." if len(response) > 100 else response,
+                "summary": cleaned[:100] + "..." if len(cleaned) > 100 else cleaned,
             }
-            return response, fallback_entity
+            return cleaned, fallback_entity
 
 
 class GenericModalProcessor(BaseModalProcessor):
@@ -1559,11 +1586,12 @@ class GenericModalProcessor(BaseModalProcessor):
         except (json.JSONDecodeError, AttributeError, ValueError) as e:
             logger.error(f"Error parsing {content_type} analysis response: {e}")
             logger.debug(f"Raw response: {response}")
+            cleaned = self._strip_thinking_tags(response)
             fallback_entity = {
                 "entity_name": entity_name
                 if entity_name
-                else f"{content_type}_{compute_mdhash_id(response)}",
+                else f"{content_type}_{compute_mdhash_id(cleaned)}",
                 "entity_type": content_type,
-                "summary": response[:100] + "..." if len(response) > 100 else response,
+                "summary": cleaned[:100] + "..." if len(cleaned) > 100 else cleaned,
             }
-            return response, fallback_entity
+            return cleaned, fallback_entity
