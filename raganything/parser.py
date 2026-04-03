@@ -1596,9 +1596,22 @@ class DoclingParser(Parser):
             for member in members:
                 cnt += 1
                 member_tag = member["$ref"]
-                member_type = member_tag.split("/")[1]
-                member_num = member_tag.split("/")[2]
-                member_block = docling_content[member_type][int(member_num)]
+                # JSON References follow the form "#/<type>/<index>" (e.g. "#/body/0")
+                ref_parts = member_tag.split("/")
+                if len(ref_parts) < 3:
+                    self.logger.warning(
+                        f"Unexpected $ref format (expected #/<type>/<index>): {member_tag!r}"
+                    )
+                    continue
+                member_type = ref_parts[1]
+                member_num = ref_parts[2]
+                try:
+                    member_block = docling_content[member_type][int(member_num)]
+                except (KeyError, ValueError, IndexError) as e:
+                    self.logger.warning(
+                        f"Could not resolve $ref {member_tag!r}: {e}"
+                    )
+                    continue
                 content_list.extend(
                     self.read_from_block_recursive(
                         member_block,
@@ -1632,7 +1645,10 @@ class DoclingParser(Parser):
         elif type == "pictures":
             try:
                 base64_uri = block["image"]["uri"]
-                base64_str = base64_uri.split(",")[1]
+                # base64 data URIs have the form "data:<mime>;base64,<data>"
+                # but some exporters may omit the prefix
+                parts = base64_uri.split(",", 1)
+                base64_str = parts[1] if len(parts) == 2 else parts[0]
                 # Create images directory within the docling subdirectory
                 image_dir = output_dir / "images"
                 image_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists

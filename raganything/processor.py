@@ -1855,15 +1855,23 @@ class ProcessorMixin:
             return False
 
         finally:
-            async with pipeline_status_lock:
-                pipeline_status.update({"scan_disabled": False})
-                pipeline_status["latest_message"] = (
-                    f"RAGAnything processing completed for {file_name}"
-                )
-                pipeline_status["history_messages"].append(
-                    f"RAGAnything processing completed for {file_name}"
-                )
-                pipeline_status["history_messages"].append("Now is allowed to scan")
+            if pipeline_status_lock is not None and pipeline_status is not None:
+                try:
+                    async with pipeline_status_lock:
+                        pipeline_status.update({"scan_disabled": False})
+                        pipeline_status["latest_message"] = (
+                            f"RAGAnything processing completed for {file_name}"
+                        )
+                        pipeline_status["history_messages"].append(
+                            f"RAGAnything processing completed for {file_name}"
+                        )
+                        pipeline_status["history_messages"].append(
+                            "Now is allowed to scan"
+                        )
+                except Exception as _finally_err:
+                    self.logger.error(
+                        f"Failed to update pipeline status in finally block: {_finally_err}"
+                    )
 
     async def insert_content_list(
         self,
