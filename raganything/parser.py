@@ -146,7 +146,9 @@ class Parser:
                 commands_to_try = ["libreoffice", "soffice"]
 
                 conversion_successful = False
+                last_cmd = commands_to_try[-1]
                 for cmd in commands_to_try:
+                    is_last = cmd == last_cmd
                     try:
                         convert_cmd = [
                             cmd,
@@ -188,7 +190,17 @@ class Parser:
                                 f"LibreOffice command '{cmd}' failed: {result.stderr}"
                             )
                     except FileNotFoundError:
-                        cls.logger.warning(f"LibreOffice command '{cmd}' not found")
+                        # Only warn when all candidates are exhausted; otherwise
+                        # log at debug level so that the normal fallback from
+                        # 'libreoffice' → 'soffice' does not surface a spurious
+                        # WARNING to users whose system only has 'soffice'.
+                        if is_last:
+                            cls.logger.warning(f"LibreOffice command '{cmd}' not found")
+                        else:
+                            cls.logger.debug(
+                                f"LibreOffice command '{cmd}' not found, "
+                                f"trying next candidate"
+                            )
                     except subprocess.TimeoutExpired:
                         cls.logger.warning(f"LibreOffice command '{cmd}' timed out")
                     except Exception as e:
