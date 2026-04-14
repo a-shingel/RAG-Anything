@@ -117,10 +117,7 @@ async def process_with_rag(
         )
 
         # Define LLM model function
-        def llm_model_func(prompt,
-                           system_prompt=None,
-                           history_messages=[],
-                           **kwargs):
+        def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
             return openai_complete_if_cache(
                 "gpt-4o-mini",
                 prompt,
@@ -160,30 +157,23 @@ async def process_with_rag(
                     system_prompt=None,
                     history_messages=[],
                     messages=[
+                        {"role": "system", "content": system_prompt}
+                        if system_prompt
+                        else None,
                         {
-                            "role": "system",
-                            "content": system_prompt
-                        } if system_prompt else None,
-                        {
-                            "role":
-                            "user",
+                            "role": "user",
                             "content": [
-                                {
-                                    "type": "text",
-                                    "text": prompt
-                                },
+                                {"type": "text", "text": prompt},
                                 {
                                     "type": "image_url",
                                     "image_url": {
-                                        "url":
-                                        f"data:image/jpeg;base64,{image_data}"
+                                        "url": f"data:image/jpeg;base64,{image_data}"
                                     },
                                 },
                             ],
-                        } if image_data else {
-                            "role": "user",
-                            "content": prompt
-                        },
+                        }
+                        if image_data
+                        else {"role": "user", "content": prompt},
                     ],
                     api_key=api_key,
                     base_url=base_url,
@@ -191,8 +181,7 @@ async def process_with_rag(
                 )
             # Pure text format
             else:
-                return llm_model_func(prompt, system_prompt, history_messages,
-                                      **kwargs)
+                return llm_model_func(prompt, system_prompt, history_messages, **kwargs)
 
         # Define embedding function
         embedding_func = EmbeddingFunc(
@@ -207,6 +196,7 @@ async def process_with_rag(
         )
         from functools import partial
         from lightrag.rerank import cohere_rerank
+
         rerank_model_func = partial(
             cohere_rerank,
             model=os.getenv("RERANK_MODEL"),
@@ -232,41 +222,48 @@ async def process_with_rag(
         )
 
         import json
+
         folder_name = os.path.basename(os.path.dirname(file_path))
-        qa_file_path = os.path.join(os.path.dirname(file_path),
-                                    f"{folder_name}_qa.jsonl")
+        qa_file_path = os.path.join(
+            os.path.dirname(file_path), f"{folder_name}_qa.jsonl"
+        )
         queries = []
         if os.path.exists(qa_file_path):
-            with open(qa_file_path, 'r', encoding='utf-8') as f:
+            with open(qa_file_path, "r", encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         qa_data = json.loads(line)
-                        queries.append({
-                            'question': qa_data['question'],
-                            'answer': qa_data.get('answer', '')
-                        })
+                        queries.append(
+                            {
+                                "question": qa_data["question"],
+                                "answer": qa_data.get("answer", ""),
+                            }
+                        )
         else:
             logger.warning(f"QA file not found: {qa_file_path}")
             return
 
         results = []
         for query in queries:
-            result = await rag.aquery(query['question'],
-                                      mode="mix",
-                                      response_type="One Sentence",
-                                      vlm_enhanced=False)
-            results.append({
-                'question': query['question'],
-                'answer': result,
-                'correct_answer': query['answer']
-            })
+            result = await rag.aquery(
+                query["question"],
+                mode="mix",
+                response_type="One Sentence",
+                vlm_enhanced=False,
+            )
+            results.append(
+                {
+                    "question": query["question"],
+                    "answer": result,
+                    "correct_answer": query["answer"],
+                }
+            )
             logger.info(f"Query: {query['question']}")
             logger.info(f"Answer: {result}")
             logger.info(f"Correct Answer: {query['answer']}")
 
-        output_file = os.path.join(os.path.dirname(file_path),
-                                   'qa_results_mix_mm.json')
-        with open(output_file, 'w', encoding='utf-8') as f:
+        output_file = os.path.join(os.path.dirname(file_path), "qa_results_mix_mm.json")
+        with open(output_file, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
         logger.info(f"Results saved to {output_file}")
 

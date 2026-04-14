@@ -215,7 +215,6 @@ async def process_with_rag(
         # Example queries - demonstrating different query approaches
         logger.info("\nQuerying processed document:")
 
-
     except Exception as e:
         logger.error(f"Error processing with RAG: {str(e)}")
         import traceback
