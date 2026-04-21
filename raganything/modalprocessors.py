@@ -797,18 +797,24 @@ class BaseModalProcessor:
         if not batch_mode:
             # Merge with correct file_path parameter
             file_path = chunk_data.get("file_path", "manual_creation")
+            doc_id = chunk_data.get("full_doc_id")
             await merge_nodes_and_edges(
                 chunk_results=chunk_results,
                 knowledge_graph_inst=self.knowledge_graph_inst,
                 entity_vdb=self.entities_vdb,
                 relationships_vdb=self.relationships_vdb,
                 global_config=self.global_config,
+                full_entities_storage=self.lightrag.full_entities,
+                full_relations_storage=self.lightrag.full_relations,
+                doc_id=doc_id,
                 pipeline_status=pipeline_status,
                 pipeline_status_lock=pipeline_status_lock,
                 llm_response_cache=self.hashing_kv,
+                entity_chunks_storage=self.lightrag.entity_chunks,
+                relation_chunks_storage=self.lightrag.relation_chunks,
                 current_file_number=1,
                 total_files=1,
-                file_path=file_path,  # Pass the correct file_path
+                file_path=file_path,
             )
 
             # Ensure all storage updates are complete
