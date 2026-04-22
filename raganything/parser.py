@@ -32,6 +32,7 @@ import base64
 import subprocess
 import tempfile
 import logging
+import time
 from pathlib import Path
 from typing import (
     Dict,
@@ -770,8 +771,6 @@ class MineruParser(Parser):
             stderr_thread.start()
 
             # Process output in real time
-            import time
-
             start_time = time.monotonic()
 
             while process.poll() is None:
@@ -805,6 +804,9 @@ class MineruParser(Parser):
                 if timeout is not None and (time.monotonic() - start_time) > timeout:
                     process.kill()
                     process.wait()
+                    # Give reader threads a moment to drain before raising
+                    stdout_thread.join(timeout=1)
+                    stderr_thread.join(timeout=1)
                     raise TimeoutError(
                         f"MinerU did not finish within {timeout}s. "
                         "This often means a model download is stuck due to network issues. "
