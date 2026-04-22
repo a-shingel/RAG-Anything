@@ -304,6 +304,7 @@ python -c "from raganything import RAGAnything; rag = RAGAnything(); print('✅ 
 
 ```python
 import asyncio
+from functools import partial
 from raganything import RAGAnything, RAGAnythingConfig
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
@@ -389,8 +390,8 @@ async def main():
     embedding_func = EmbeddingFunc(
         embedding_dim=3072,
         max_token_size=8192,
-        func=lambda texts: openai_embed.func(
-            texts,
+        func=partial(
+            openai_embed.func,
             model="text-embedding-3-large",
             api_key=api_key,
             base_url=base_url,
@@ -442,6 +443,7 @@ if __name__ == "__main__":
 
 ```python
 import asyncio
+from functools import partial
 from lightrag import LightRAG
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
@@ -467,8 +469,8 @@ async def process_multimodal_content():
         embedding_func=EmbeddingFunc(
             embedding_dim=3072,
             max_token_size=8192,
-            func=lambda texts: openai_embed.func(
-                texts,
+            func=partial(
+                openai_embed.func,
                 model="text-embedding-3-large",
                 api_key=api_key,
                 base_url=base_url,
@@ -657,6 +659,7 @@ equation_result = await rag.aquery_with_multimodal(
 
 ```python
 import asyncio
+from functools import partial
 from raganything import RAGAnything
 from lightrag import LightRAG
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
@@ -692,8 +695,8 @@ async def load_existing_lightrag():
         embedding_func=EmbeddingFunc(
             embedding_dim=3072,
             max_token_size=8192,
-            func=lambda texts: openai_embed.func(
-                texts,
+            func=partial(
+                openai_embed.func,
                 model="text-embedding-3-large",
                 api_key=api_key,
                 base_url=base_url,
@@ -785,6 +788,7 @@ if __name__ == "__main__":
 
 ```python
 import asyncio
+from functools import partial
 from raganything import RAGAnything, RAGAnythingConfig
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
@@ -855,8 +859,8 @@ async def insert_content_list_example():
     embedding_func = EmbeddingFunc(
         embedding_dim=3072,
         max_token_size=8192,
-        func=lambda texts: openai_embed.func(
-            texts,
+        func=partial(
+            openai_embed.func,
             model="text-embedding-3-large",
             api_key=api_key,
             base_url=base_url,

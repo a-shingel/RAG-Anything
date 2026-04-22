@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import logging
 import logging.config
+from functools import partial
 from pathlib import Path
 
 # Add project root directory to Python path
@@ -252,8 +253,8 @@ async def demo_insert_content_list(
         embedding_func = EmbeddingFunc(
             embedding_dim=embedding_dim,
             max_token_size=8192,
-            func=lambda texts: openai_embed.func(
-                texts,
+            func=partial(
+                openai_embed.func,
                 model=embedding_model,
                 api_key=api_key,
                 base_url=base_url,

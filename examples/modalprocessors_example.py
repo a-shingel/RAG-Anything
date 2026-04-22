@@ -6,6 +6,7 @@ This example demonstrates how to use RAG-Anything's modal processors directly wi
 
 import asyncio
 import argparse
+from functools import partial
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
 from lightrag.utils import EmbeddingFunc
 from lightrag.kg.shared_storage import initialize_pipeline_status
@@ -175,8 +176,8 @@ async def initialize_rag(api_key: str, base_url: str = None):
         embedding_func=EmbeddingFunc(
             embedding_dim=embedding_dim,
             max_token_size=8192,
-            func=lambda texts: openai_embed.func(
-                texts,
+            func=partial(
+                openai_embed.func,
                 model=embedding_model,
                 api_key=api_key,
                 base_url=base_url,
