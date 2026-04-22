@@ -1710,15 +1710,13 @@ class DoclingParser(Parser):
         content_list = []
         if not block.get("children"):
             cnt += 1
-            result = self.read_from_block(block, type, output_dir, cnt, num)
-            if result:
-                content_list.append(result)
+            content_list.append(self.read_from_block(block, type, output_dir, cnt, num))
         else:
             if type not in ["groups", "body"]:
                 cnt += 1
-                result = self.read_from_block(block, type, output_dir, cnt, num)
-                if result:
-                    content_list.append(result)
+                content_list.append(
+                    self.read_from_block(block, type, output_dir, cnt, num)
+                )
             members = block["children"]
             for member in members:
                 cnt += 1
