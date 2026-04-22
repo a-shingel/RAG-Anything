@@ -196,6 +196,7 @@ class QueryMixin:
         query: str,
         multimodal_content: List[Dict[str, Any]] = None,
         mode: str = "mix",
+        system_prompt: str | None = None,
         **kwargs,
     ) -> str:
         """
@@ -207,6 +208,7 @@ class QueryMixin:
                 - type: Content type ("image", "table", "equation", etc.)
                 - Other fields depend on type (e.g., img_path, table_data, latex, etc.)
             mode: Query mode ("local", "global", "hybrid", "naive", "mix", "bypass")
+            system_prompt: Optional system prompt to include in the query
             **kwargs: Other query parameters, will be passed to QueryParam
 
         Returns:
@@ -243,7 +245,7 @@ class QueryMixin:
         # If no multimodal content, fallback to pure text query
         if not multimodal_content:
             self.logger.info("No multimodal content provided, executing text query")
-            return await self.aquery(query, mode=mode, **kwargs)
+            return await self.aquery(query, mode=mode, system_prompt=system_prompt, **kwargs)
 
         # Generate cache key for multimodal query
         cache_key = self._generate_multimodal_cache_key(
@@ -285,7 +287,7 @@ class QueryMixin:
         )
 
         # Execute enhanced query
-        result = await self.aquery(enhanced_query, mode=mode, **kwargs)
+        result = await self.aquery(enhanced_query, mode=mode, system_prompt=system_prompt, **kwargs)
 
         # Save to cache if available and enabled
         if (
