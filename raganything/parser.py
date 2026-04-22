@@ -35,7 +35,6 @@ import logging
 import urllib.parse
 import urllib.request
 import shutil
-import os
 from pathlib import Path
 from typing import (
     Dict,

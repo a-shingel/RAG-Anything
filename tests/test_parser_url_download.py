@@ -1,4 +1,5 @@
 """Tests for the Parser URL detection and download helpers."""
+
 import io
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -94,8 +95,10 @@ def test_download_file_cleans_up_temp_on_failure():
     response.read.side_effect = OSError("connection reset")
     response.close = MagicMock()
 
-    with patch("urllib.request.urlopen", return_value=response), \
-         patch("tempfile.mkstemp", side_effect=tracking_mkstemp):
+    with (
+        patch("urllib.request.urlopen", return_value=response),
+        patch("tempfile.mkstemp", side_effect=tracking_mkstemp),
+    ):
         with pytest.raises(RuntimeError, match="Failed to download"):
             parser._download_file("https://example.com/file.pdf")
 
@@ -120,8 +123,10 @@ def test_download_file_cleans_up_temp_on_urlopen_failure():
         created.append(Path(name))
         return fd, name
 
-    with patch("urllib.request.urlopen", side_effect=TimeoutError("stalled")), \
-         patch("tempfile.mkstemp", side_effect=tracking_mkstemp):
+    with (
+        patch("urllib.request.urlopen", side_effect=TimeoutError("stalled")),
+        patch("tempfile.mkstemp", side_effect=tracking_mkstemp),
+    ):
         with pytest.raises(RuntimeError, match="Failed to download"):
             parser._download_file("https://slow.example.com/file.pdf")
 
