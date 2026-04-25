@@ -32,6 +32,7 @@ import base64
 import subprocess
 import tempfile
 import logging
+import time
 import urllib.parse
 import urllib.request
 import shutil
@@ -723,6 +724,7 @@ class MineruParser(Parser):
         device: Optional[str] = None,
         source: Optional[str] = None,
         vlm_url: Optional[str] = None,
+        timeout: Optional[int] = None,
         **kwargs,
     ) -> None:
         """
@@ -741,6 +743,8 @@ class MineruParser(Parser):
             device: Inference device
             source: Model source
             vlm_url: When the backend is `vlm-http-client`, you need to specify the server_url
+            timeout: Maximum seconds to wait for MinerU to complete. None means no limit.
+                     Raises TimeoutError if the process does not finish within this duration.
             **kwargs: Additional parameters for subprocess (e.g., env)
         """
         cmd = [
@@ -854,6 +858,8 @@ class MineruParser(Parser):
             stderr_thread.start()
 
             # Process output in real time
+            start_time = time.monotonic()
+
             while process.poll() is None:
                 # Check stdout queue
                 try:
@@ -881,9 +887,20 @@ class MineruParser(Parser):
                 except Empty:
                     pass
 
-                # Small delay to prevent busy waiting
-                import time
+                # Enforce timeout — kill the process and raise if exceeded
+                if timeout is not None and (time.monotonic() - start_time) > timeout:
+                    process.kill()
+                    process.wait()
+                    # Give reader threads a moment to drain before raising
+                    stdout_thread.join(timeout=1)
+                    stderr_thread.join(timeout=1)
+                    raise TimeoutError(
+                        f"MinerU did not finish within {timeout}s. "
+                        "This often means a model download is stuck due to network issues. "
+                        "Check your internet connection or pre-download the required models."
+                    )
 
+                # Small delay to prevent busy waiting
                 time.sleep(0.1)
 
             # Process any remaining output after process completion
