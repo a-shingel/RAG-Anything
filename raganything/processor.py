@@ -1680,6 +1680,46 @@ class ProcessorMixin:
         pipeline_status_lock = None
         current_doc_status = {}  # initialised here so the except block can always unpack it
 
+        async def mark_initialization_failed(error_msg: str) -> None:
+            """Persist init failures when LightRAG doc_status is already available."""
+            lightrag = getattr(self, "lightrag", None)
+            doc_status = getattr(lightrag, "doc_status", None)
+            if doc_status is None:
+                self.logger.error(
+                    "LightRAG initialization failed before doc_status was available; "
+                    f"unable to persist failed status for {file_path}"
+                )
+                return
+
+            try:
+                existing_status = await doc_status.get_by_id(doc_pre_id)
+                failed_status = {
+                    "status": DocStatus.FAILED,
+                    "content": "",
+                    "error_msg": error_msg,
+                    "content_summary": "",
+                    "multimodal_content": [],
+                    "scheme_name": scheme_name,
+                    "content_length": 0,
+                    "created_at": "",
+                    "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                    "file_path": file_name,
+                }
+                if existing_status:
+                    failed_status = {
+                        **existing_status,
+                        "status": DocStatus.FAILED,
+                        "error_msg": error_msg,
+                        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                    }
+                await doc_status.upsert({doc_pre_id: failed_status})
+                await doc_status.index_done_callback()
+            except Exception as status_error:
+                self.logger.error(
+                    f"Failed to persist initialization failure status for {file_path}: "
+                    f"{status_error}"
+                )
+
         if parser:
             self.config.parser = parser
 
@@ -1687,10 +1727,12 @@ class ProcessorMixin:
             # Ensure LightRAG is initialized before accessing its storages
             result = await self._ensure_lightrag_initialized()
             if not result or not result.get("success"):
+                error_msg = (result or {}).get("error", "unknown error")
                 self.logger.error(
-                    f"LightRAG initialization failed: {(result or {}).get('error')}; "
+                    f"LightRAG initialization failed: {error_msg}; "
                     f"skipping document processing for {file_path}"
                 )
+                await mark_initialization_failed(str(error_msg))
                 return False
 
             # Use config defaults if not provided
