@@ -534,7 +534,9 @@ class ProcessorMixin:
         # Ensure LightRAG is initialized before accessing its storages
         init_result = await self._ensure_lightrag_initialized()
         if not init_result or not init_result.get("success"):
-            self.logger.error("LightRAG initialization failed; skipping multimodal processing")
+            self.logger.error(
+                "LightRAG initialization failed; skipping multimodal processing"
+            )
             return
 
         # Check multimodal processing status - handle LightRAG's early DocStatus.PROCESSED marking

@@ -1608,9 +1608,7 @@ class DoclingParser(Parser):
                 try:
                     member_block = docling_content[member_type][int(member_num)]
                 except (KeyError, ValueError, IndexError) as e:
-                    self.logger.warning(
-                        f"Could not resolve $ref {member_tag!r}: {e}"
-                    )
+                    self.logger.warning(f"Could not resolve $ref {member_tag!r}: {e}")
                     continue
                 content_list.extend(
                     self.read_from_block_recursive(

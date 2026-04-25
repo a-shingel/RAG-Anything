@@ -99,9 +99,9 @@ class RAGAnythingConfig:
     context_filter_content_types: List[str] = field(
         default_factory=lambda: [
             x.strip()
-            for x in get_env_value(
-                "CONTEXT_FILTER_CONTENT_TYPES", "text", str
-            ).split(",")
+            for x in get_env_value("CONTEXT_FILTER_CONTENT_TYPES", "text", str).split(
+                ","
+            )
         ]
     )
     """Content types to include in context extraction (e.g., 'text', 'image', 'table')."""

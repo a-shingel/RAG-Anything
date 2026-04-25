@@ -109,10 +109,9 @@ class BatchMixin:
         async def process_single_file(file_path: Path):
             async with semaphore:
                 is_in_subdir = (
-                    lambda file_path, dir_path: len(
-                        file_path.relative_to(dir_path).parents
+                    lambda file_path, dir_path: (
+                        len(file_path.relative_to(dir_path).parents) > 1
                     )
-                    > 1
                 )(file_path, folder_path_obj)
 
                 try:
