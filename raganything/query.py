@@ -250,7 +250,9 @@ class QueryMixin:
         # If no multimodal content, fallback to pure text query
         if not multimodal_content:
             self.logger.info("No multimodal content provided, executing text query")
-            return await self.aquery(query, mode=mode, system_prompt=system_prompt, **kwargs)
+            return await self.aquery(
+                query, mode=mode, system_prompt=system_prompt, **kwargs
+            )
 
         # Generate cache key for multimodal query
         cache_key = self._generate_multimodal_cache_key(
@@ -296,7 +298,9 @@ class QueryMixin:
         )
 
         # Execute enhanced query
-        result = await self.aquery(enhanced_query, mode=mode, system_prompt=system_prompt, **kwargs)
+        result = await self.aquery(
+            enhanced_query, mode=mode, system_prompt=system_prompt, **kwargs
+        )
 
         # Save to cache if available and enabled
         if (
