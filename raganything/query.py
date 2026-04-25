@@ -86,6 +86,7 @@ class QueryMixin:
                 "top_k",
                 "max_tokens",
                 "temperature",
+                "system_prompt",
                 # "only_need_context",
                 # "only_need_prompt",
             ]
@@ -249,7 +250,11 @@ class QueryMixin:
 
         # Generate cache key for multimodal query
         cache_key = self._generate_multimodal_cache_key(
-            query, multimodal_content, mode, **kwargs
+            query,
+            multimodal_content,
+            mode,
+            system_prompt=system_prompt,
+            **kwargs,
         )
 
         # Check cache if available and enabled
