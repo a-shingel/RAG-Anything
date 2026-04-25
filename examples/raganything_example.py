@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import logging
 import logging.config
+from functools import partial
 from pathlib import Path
 
 # Add project root directory to Python path
@@ -116,9 +117,12 @@ async def process_with_rag(
         )
 
         # Define LLM model function
+        llm_model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+        vision_model = os.getenv("VISION_MODEL", "gpt-4o")
+
         def llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
             return openai_complete_if_cache(
-                "gpt-4o-mini",
+                llm_model,
                 prompt,
                 system_prompt=system_prompt,
                 history_messages=history_messages,
@@ -139,7 +143,7 @@ async def process_with_rag(
             # If messages format is provided (for multimodal VLM enhanced query), use it directly
             if messages:
                 return openai_complete_if_cache(
-                    "gpt-4o",
+                    vision_model,
                     "",
                     system_prompt=None,
                     history_messages=[],
@@ -151,7 +155,7 @@ async def process_with_rag(
             # Traditional single image format
             elif image_data:
                 return openai_complete_if_cache(
-                    "gpt-4o",
+                    vision_model,
                     "",
                     system_prompt=None,
                     history_messages=[],
@@ -189,8 +193,8 @@ async def process_with_rag(
         embedding_func = EmbeddingFunc(
             embedding_dim=embedding_dim,
             max_token_size=8192,
-            func=lambda texts: openai_embed.func(
-                texts,
+            func=partial(
+                openai_embed.func,
                 model=embedding_model,
                 api_key=api_key,
                 base_url=base_url,
