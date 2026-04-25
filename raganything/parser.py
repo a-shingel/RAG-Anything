@@ -25,6 +25,7 @@ from __future__ import annotations
 
 
 import os
+import platform
 import hashlib
 import json
 import argparse
@@ -45,10 +46,9 @@ from typing import (
     Tuple,
     Any,
     Iterator,
-    TypeVar,
 )
 
-T = TypeVar("T")
+_IS_WINDOWS: bool = platform.system() == "Windows"
 
 
 class MineruExecutionError(Exception):
@@ -228,8 +228,6 @@ class Parser:
                 )
 
                 # Prepare subprocess parameters to hide console window on Windows
-                import platform
-
                 # Try LibreOffice commands in order of preference
                 commands_to_try = ["libreoffice", "soffice"]
 
@@ -258,7 +256,7 @@ class Parser:
                         }
 
                         # Hide console window on Windows
-                        if platform.system() == "Windows":
+                        if _IS_WINDOWS:
                             convert_subprocess_kwargs["creationflags"] = (
                                 subprocess.CREATE_NO_WINDOW
                             )
@@ -801,7 +799,6 @@ class MineruParser(Parser):
 
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
             import threading
             from queue import Queue, Empty
 
@@ -824,7 +821,7 @@ class MineruParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             # Function to read output from subprocess and add to queue
@@ -1427,8 +1424,6 @@ class MineruParser(Parser):
         """
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
-
             subprocess_kwargs = {
                 "capture_output": True,
                 "text": True,
@@ -1438,7 +1433,7 @@ class MineruParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             result = subprocess.run(["mineru", "--version"], **subprocess_kwargs)
@@ -1630,8 +1625,6 @@ class DoclingParser(Parser):
 
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
-
             env = None
             if custom_env:
                 env = os.environ.copy()
@@ -1647,7 +1640,7 @@ class DoclingParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 docling_subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             result = subprocess.run(cmd, **docling_subprocess_kwargs)
@@ -1737,9 +1730,20 @@ class DoclingParser(Parser):
             for member in members:
                 cnt += 1
                 member_tag = member["$ref"]
-                member_type = member_tag.split("/")[1]
-                member_num = member_tag.split("/")[2]
-                member_block = docling_content[member_type][int(member_num)]
+                # JSON References follow the form "#/<type>/<index>" (e.g. "#/body/0")
+                ref_parts = member_tag.split("/")
+                if len(ref_parts) < 3:
+                    self.logger.warning(
+                        f"Unexpected $ref format (expected #/<type>/<index>): {member_tag!r}"
+                    )
+                    continue
+                member_type = ref_parts[1]
+                member_num = ref_parts[2]
+                try:
+                    member_block = docling_content[member_type][int(member_num)]
+                except (KeyError, ValueError, IndexError) as e:
+                    self.logger.warning(f"Could not resolve $ref {member_tag!r}: {e}")
+                    continue
                 content_list.extend(
                     self.read_from_block_recursive(
                         member_block,
@@ -1773,7 +1777,10 @@ class DoclingParser(Parser):
         elif type == "pictures":
             try:
                 base64_uri = block["image"]["uri"]
-                base64_str = base64_uri.split(",")[1]
+                # base64 data URIs have the form "data:<mime>;base64,<data>"
+                # but some exporters may omit the prefix
+                parts = base64_uri.split(",", 1)
+                base64_str = parts[1] if len(parts) == 2 else parts[0]
                 # Create images directory within the docling subdirectory
                 image_dir = output_dir / "images"
                 image_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
@@ -1939,8 +1946,6 @@ class DoclingParser(Parser):
         """
         try:
             # Prepare subprocess parameters to hide console window on Windows
-            import platform
-
             subprocess_kwargs = {
                 "capture_output": True,
                 "text": True,
@@ -1950,7 +1955,7 @@ class DoclingParser(Parser):
             }
 
             # Hide console window on Windows
-            if platform.system() == "Windows":
+            if _IS_WINDOWS:
                 subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
             result = subprocess.run(["docling", "--version"], **subprocess_kwargs)

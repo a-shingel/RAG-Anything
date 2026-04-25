@@ -238,7 +238,11 @@ class QueryMixin:
             )
         """
         # Ensure LightRAG is initialized
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         self.logger.info(f"Executing multimodal query: {query[:100]}...")
         self.logger.info(f"Query mode: {mode}")
@@ -246,7 +250,9 @@ class QueryMixin:
         # If no multimodal content, fallback to pure text query
         if not multimodal_content:
             self.logger.info("No multimodal content provided, executing text query")
-            return await self.aquery(query, mode=mode, system_prompt=system_prompt, **kwargs)
+            return await self.aquery(
+                query, mode=mode, system_prompt=system_prompt, **kwargs
+            )
 
         # Generate cache key for multimodal query
         cache_key = self._generate_multimodal_cache_key(
@@ -292,7 +298,9 @@ class QueryMixin:
         )
 
         # Execute enhanced query
-        result = await self.aquery(enhanced_query, mode=mode, system_prompt=system_prompt, **kwargs)
+        result = await self.aquery(
+            enhanced_query, mode=mode, system_prompt=system_prompt, **kwargs
+        )
 
         # Save to cache if available and enabled
         if (
@@ -367,7 +375,11 @@ class QueryMixin:
             )
 
         # Ensure LightRAG is initialized
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         self.logger.info(f"Executing VLM enhanced query: {query[:100]}...")
 
@@ -427,7 +439,7 @@ class QueryMixin:
         for i, content in enumerate(multimodal_content):
             content_type = content.get("type", "unknown")
             self.logger.info(
-                f"Processing {i+1}/{len(multimodal_content)} multimodal content: {content_type}"
+                f"Processing {i + 1}/{len(multimodal_content)} multimodal content: {content_type}"
             )
 
             try:

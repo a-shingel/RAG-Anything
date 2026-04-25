@@ -531,6 +531,14 @@ class ProcessorMixin:
                 doc_id=doc_id,
             )
 
+        # Ensure LightRAG is initialized before accessing its storages
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            self.logger.error(
+                "LightRAG initialization failed; skipping multimodal processing"
+            )
+            return
+
         # Check multimodal processing status - handle LightRAG's early DocStatus.PROCESSED marking
         try:
             existing_doc_status = await self.lightrag.doc_status.get_by_id(doc_id)
@@ -573,9 +581,6 @@ class ProcessorMixin:
                 pipeline_status["history_messages"].append(log_message)
 
         try:
-            # Ensure LightRAG is initialized
-            await self._ensure_lightrag_initialized()
-
             await self._process_multimodal_content_batch_type_aware(
                 multimodal_items=multimodal_items, file_path=file_path, doc_id=doc_id
             )
@@ -1540,7 +1545,11 @@ class ProcessorMixin:
 
         try:
             # Ensure LightRAG is initialized
-            await self._ensure_lightrag_initialized()
+            init_result = await self._ensure_lightrag_initialized()
+            if not init_result or not init_result.get("success"):
+                raise RuntimeError(
+                    f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+                )
 
             # Use config defaults if not provided
             if output_dir is None:
@@ -1675,25 +1684,61 @@ class ProcessorMixin:
         doc_pre_id = f"doc-pre-{file_name}"
         pipeline_status = None
         pipeline_status_lock = None
+        current_doc_status = {}  # initialised here so the except block can always unpack it
+
+        async def mark_initialization_failed(error_msg: str) -> None:
+            """Persist init failures when LightRAG doc_status is already available."""
+            lightrag = getattr(self, "lightrag", None)
+            doc_status = getattr(lightrag, "doc_status", None)
+            if doc_status is None:
+                self.logger.error(
+                    "LightRAG initialization failed before doc_status was available; "
+                    f"unable to persist failed status for {file_path}"
+                )
+                return
+
+            try:
+                existing_status = await doc_status.get_by_id(doc_pre_id)
+                failed_status = {
+                    "status": DocStatus.FAILED,
+                    "content": "",
+                    "error_msg": error_msg,
+                    "content_summary": "",
+                    "multimodal_content": [],
+                    "scheme_name": scheme_name,
+                    "content_length": 0,
+                    "created_at": "",
+                    "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                    "file_path": file_name,
+                }
+                if existing_status:
+                    failed_status = {
+                        **existing_status,
+                        "status": DocStatus.FAILED,
+                        "error_msg": error_msg,
+                        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                    }
+                await doc_status.upsert({doc_pre_id: failed_status})
+                await doc_status.index_done_callback()
+            except Exception as status_error:
+                self.logger.error(
+                    f"Failed to persist initialization failure status for {file_path}: "
+                    f"{status_error}"
+                )
 
         if parser:
             self.config.parser = parser
 
-        current_doc_status = await self.lightrag.doc_status.get_by_id(doc_pre_id)
-
         try:
-            # Ensure LightRAG is initialized
+            # Ensure LightRAG is initialized before accessing its storages
             result = await self._ensure_lightrag_initialized()
-            if not result["success"]:
-                await self.lightrag.doc_status.upsert(
-                    {
-                        doc_pre_id: {
-                            **current_doc_status,
-                            "status": DocStatus.FAILED,
-                            "error_msg": result["error"],
-                        }
-                    }
+            if not result or not result.get("success"):
+                error_msg = (result or {}).get("error", "unknown error")
+                self.logger.error(
+                    f"LightRAG initialization failed: {error_msg}; "
+                    f"skipping document processing for {file_path}"
                 )
+                await mark_initialization_failed(str(error_msg))
                 return False
 
             # Use config defaults if not provided
@@ -1761,9 +1806,10 @@ class ProcessorMixin:
                     file_path, output_dir, parse_method, display_stats, **kwargs
                 )
             except MineruExecutionError as e:
-                error_message = e.error_msg
                 if isinstance(e.error_msg, list):
-                    error_message = "\n".join(e.error_msg)
+                    error_message = "\n".join(str(m) for m in e.error_msg)
+                else:
+                    error_message = str(e.error_msg)
                 await self.lightrag.doc_status.upsert(
                     {
                         doc_pre_id: {
@@ -1859,15 +1905,23 @@ class ProcessorMixin:
             return False
 
         finally:
-            async with pipeline_status_lock:
-                pipeline_status.update({"scan_disabled": False})
-                pipeline_status["latest_message"] = (
-                    f"RAGAnything processing completed for {file_name}"
-                )
-                pipeline_status["history_messages"].append(
-                    f"RAGAnything processing completed for {file_name}"
-                )
-                pipeline_status["history_messages"].append("Now is allowed to scan")
+            if pipeline_status_lock is not None and pipeline_status is not None:
+                try:
+                    async with pipeline_status_lock:
+                        pipeline_status.update({"scan_disabled": False})
+                        pipeline_status["latest_message"] = (
+                            f"RAGAnything processing completed for {file_name}"
+                        )
+                        pipeline_status["history_messages"].append(
+                            f"RAGAnything processing completed for {file_name}"
+                        )
+                        pipeline_status["history_messages"].append(
+                            "Now is allowed to scan"
+                        )
+                except Exception as _finally_err:
+                    self.logger.error(
+                        f"Failed to update pipeline status in finally block: {_finally_err}"
+                    )
 
     async def insert_content_list(
         self,
@@ -1907,7 +1961,11 @@ class ProcessorMixin:
         doc_start_time = time.time()
 
         # Ensure LightRAG is initialized
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         # Use config defaults if not provided
         if display_stats is None:

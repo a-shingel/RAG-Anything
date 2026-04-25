@@ -70,7 +70,11 @@ class BatchMixin:
         if max_workers is None:
             max_workers = self.config.max_concurrent_files
 
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         # Get all files in the folder
         folder_path_obj = Path(folder_path)
@@ -105,10 +109,9 @@ class BatchMixin:
         async def process_single_file(file_path: Path):
             async with semaphore:
                 is_in_subdir = (
-                    lambda file_path, dir_path: len(
-                        file_path.relative_to(dir_path).parents
+                    lambda file_path, dir_path: (
+                        len(file_path.relative_to(dir_path).parents) > 1
                     )
-                    > 1
                 )(file_path, folder_path_obj)
 
                 try:
@@ -363,7 +366,11 @@ class BatchMixin:
 
         # Step 2: Process with RAG
         # Initialize RAG system
-        await self._ensure_lightrag_initialized()
+        init_result = await self._ensure_lightrag_initialized()
+        if not init_result or not init_result.get("success"):
+            raise RuntimeError(
+                f"LightRAG initialization failed: {(init_result or {}).get('error', 'unknown error')}"
+            )
 
         # Then, process each successful file with RAG
         rag_results = {}
