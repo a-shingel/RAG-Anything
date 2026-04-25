@@ -36,17 +36,18 @@ API Reference:
 import os
 import uuid
 import asyncio
-from typing import List, Dict, Optional
+import inspect
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # RAG-Anything imports
 from raganything import RAGAnything, RAGAnythingConfig
 from lightrag.utils import EmbeddingFunc
 from lightrag.llm.openai import openai_complete_if_cache, openai_embed
+
+# Load environment variables
+load_dotenv()
 
 # MiniMax configuration
 MINIMAX_BASE_URL = os.getenv("MINIMAX_BASE_URL", "https://api.minimax.io/v1")
@@ -56,9 +57,33 @@ MINIMAX_LLM_MODEL = os.getenv("MINIMAX_LLM_MODEL", "MiniMax-M2.7")
 # Embedding configuration (MiniMax does not provide an embedding model;
 # configure a separate embedding service below)
 EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BINDING_HOST", "https://api.openai.com/v1")
-EMBEDDING_API_KEY = os.getenv("EMBEDDING_BINDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+EMBEDDING_API_KEY = os.getenv(
+    "EMBEDDING_BINDING_API_KEY", os.getenv("OPENAI_API_KEY", "")
+)
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "1536"))
+
+
+def _require_minimax_api_key() -> str:
+    """Return the MiniMax API key or fail before LightRAG falls back to OpenAI."""
+    if not MINIMAX_API_KEY:
+        raise ValueError(
+            "MINIMAX_API_KEY is required for MiniMax. "
+            "Set it with: export MINIMAX_API_KEY=your-api-key"
+        )
+    return MINIMAX_API_KEY
+
+
+def _normalize_minimax_temperature(value):
+    """MiniMax accepts temperatures in (0.0, 1.0]; use 1.0 for invalid values."""
+    if value is None:
+        return 1.0
+    try:
+        if value <= 0 or value > 1:
+            return 1.0
+    except TypeError:
+        return 1.0
+    return value
 
 
 async def minimax_llm_model_func(
@@ -72,8 +97,7 @@ async def minimax_llm_model_func(
     MiniMax temperature must be in (0.0, 1.0]; defaults to 1.0.
     """
     # Ensure temperature is within MiniMax's accepted range (0.0, 1.0]
-    if "temperature" in kwargs and (kwargs["temperature"] <= 0 or kwargs["temperature"] > 1):
-        kwargs["temperature"] = 1.0
+    kwargs["temperature"] = _normalize_minimax_temperature(kwargs.get("temperature"))
     kwargs.setdefault("temperature", 1.0)
 
     return await openai_complete_if_cache(
@@ -82,7 +106,7 @@ async def minimax_llm_model_func(
         system_prompt=system_prompt,
         history_messages=history_messages or [],
         base_url=MINIMAX_BASE_URL,
-        api_key=MINIMAX_API_KEY,
+        api_key=_require_minimax_api_key(),
         **kwargs,
     )
 
@@ -124,26 +148,44 @@ class MiniMaxRAGIntegration:
         self.rag = None
 
     async def test_connection(self) -> bool:
-        """Test MiniMax API connection."""
+        """Best-effort MiniMax API key and endpoint check."""
         if not self.api_key:
             print("❌ MINIMAX_API_KEY is not set")
             print("   Set it with: export MINIMAX_API_KEY=your-api-key")
             return False
 
         try:
-            print(f"🔌 Testing MiniMax connection at: {self.base_url}")
             from openai import AsyncOpenAI
 
+            print(f"🔌 Testing MiniMax endpoint at: {self.base_url}")
             client = AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
-            models = await client.models.list()
-            available = [m.id for m in models.data]
-            print(f"✅ Connected successfully! Found {len(available)} models")
-            for model_id in available[:5]:
-                marker = "🎯" if model_id == self.model_name else "  "
-                print(f"{marker} {model_id}")
-            if len(available) > 5:
-                print(f"  ... and {len(available) - 5} more")
-            await client.close()
+            try:
+                models = await client.models.list()
+            except Exception as model_error:
+                print(
+                    "⚠️  Could not list MiniMax models; continuing because many "
+                    f"OpenAI-compatible providers do not expose /v1/models: {model_error}"
+                )
+            else:
+                available = [m.id for m in models.data]
+                print(f"✅ Model endpoint returned {len(available)} model(s)")
+                for model_id in available[:5]:
+                    marker = "🎯" if model_id == self.model_name else "  "
+                    print(f"{marker} {model_id}")
+                if len(available) > 5:
+                    print(f"  ... and {len(available) - 5} more")
+            finally:
+                close = getattr(client, "close", None) or getattr(
+                    client, "aclose", None
+                )
+                if close:
+                    close_result = close()
+                    if inspect.isawaitable(close_result):
+                        await close_result
+
+            print(
+                "✅ MiniMax API key is configured; chat completion will verify access."
+            )
             return True
         except Exception as e:
             print(f"❌ Connection failed: {e}")
@@ -157,7 +199,7 @@ class MiniMaxRAGIntegration:
             result = await minimax_llm_model_func(
                 "Say 'RAG-Anything MiniMax integration test passed' in one sentence."
             )
-            print(f"✅ Chat test successful!")
+            print("✅ Chat test successful!")
             print(f"   Response: {result.strip()[:120]}")
             return True
         except Exception as e:

@@ -15,7 +15,7 @@ import os
 import sys
 import types
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +72,9 @@ def _load_example(extra_env=None):
     import importlib.util
     from pathlib import Path
 
-    module_path = Path(__file__).parent.parent / "examples" / "minimax_integration_example.py"
+    module_path = (
+        Path(__file__).parent.parent / "examples" / "minimax_integration_example.py"
+    )
 
     env = {
         "MINIMAX_API_KEY": "test-key",
@@ -93,12 +95,16 @@ def _load_example(extra_env=None):
         if key == "minimax_integration_example":
             del sys.modules[key]
 
-    spec = importlib.util.spec_from_file_location("minimax_integration_example", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "minimax_integration_example", module_path
+    )
     mod = importlib.util.module_from_spec(spec)
 
-    with patch.dict(os.environ, env, clear=False), \
-         patch.dict(sys.modules, stubs, clear=False), \
-         patch("dotenv.load_dotenv"):
+    with (
+        patch.dict(os.environ, env, clear=False),
+        patch.dict(sys.modules, stubs, clear=False),
+        patch("dotenv.load_dotenv"),
+    ):
         spec.loader.exec_module(mod)
 
     return mod, stubs
@@ -114,27 +120,33 @@ class TestMiniMaxConstants:
 
     def test_default_base_url(self):
         # os.getenv default is used only when the var is absent, not when it is ""
-        env = {k: v for k, v in {
-            "MINIMAX_API_KEY": "test-key",
-            "MINIMAX_LLM_MODEL": "MiniMax-M2.7",
-            "EMBEDDING_BINDING_HOST": "https://api.openai.com/v1",
-            "EMBEDDING_BINDING_API_KEY": "test-embed-key",
-            "EMBEDDING_MODEL": "text-embedding-3-small",
-            "EMBEDDING_DIM": "1536",
-        }.items()}
+        env = {
+            k: v
+            for k, v in {
+                "MINIMAX_API_KEY": "test-key",
+                "MINIMAX_LLM_MODEL": "MiniMax-M2.7",
+                "EMBEDDING_BINDING_HOST": "https://api.openai.com/v1",
+                "EMBEDDING_BINDING_API_KEY": "test-embed-key",
+                "EMBEDDING_MODEL": "text-embedding-3-small",
+                "EMBEDDING_DIM": "1536",
+            }.items()
+        }
         with patch.dict(os.environ, env, clear=True):
             mod, _ = _load_example()
         assert mod.MINIMAX_BASE_URL == "https://api.minimax.io/v1"
 
     def test_default_model(self):
-        env = {k: v for k, v in {
-            "MINIMAX_API_KEY": "test-key",
-            "MINIMAX_BASE_URL": "https://api.minimax.io/v1",
-            "EMBEDDING_BINDING_HOST": "https://api.openai.com/v1",
-            "EMBEDDING_BINDING_API_KEY": "test-embed-key",
-            "EMBEDDING_MODEL": "text-embedding-3-small",
-            "EMBEDDING_DIM": "1536",
-        }.items()}
+        env = {
+            k: v
+            for k, v in {
+                "MINIMAX_API_KEY": "test-key",
+                "MINIMAX_BASE_URL": "https://api.minimax.io/v1",
+                "EMBEDDING_BINDING_HOST": "https://api.openai.com/v1",
+                "EMBEDDING_BINDING_API_KEY": "test-embed-key",
+                "EMBEDDING_MODEL": "text-embedding-3-small",
+                "EMBEDDING_DIM": "1536",
+            }.items()
+        }
         with patch.dict(os.environ, env, clear=True):
             mod, _ = _load_example()
         assert mod.MINIMAX_LLM_MODEL == "MiniMax-M2.7"
@@ -240,6 +252,32 @@ class TestTemperatureEnforcement:
         await mod.minimax_llm_model_func("hello", temperature=1.5)
         assert captured["temperature"] == 1.0
 
+    @pytest.mark.asyncio
+    async def test_none_temperature_replaced(self):
+        mod, _ = _load_example()
+        captured = {}
+
+        async def mock_complete(model, prompt, **kwargs):
+            captured.update(kwargs)
+            return "ok"
+
+        mod.openai_complete_if_cache = mock_complete
+        await mod.minimax_llm_model_func("hello", temperature=None)
+        assert captured["temperature"] == 1.0
+
+    @pytest.mark.asyncio
+    async def test_non_numeric_temperature_replaced(self):
+        mod, _ = _load_example()
+        captured = {}
+
+        async def mock_complete(model, prompt, **kwargs):
+            captured.update(kwargs)
+            return "ok"
+
+        mod.openai_complete_if_cache = mock_complete
+        await mod.minimax_llm_model_func("hello", temperature="hot")
+        assert captured["temperature"] == 1.0
+
 
 # ---------------------------------------------------------------------------
 # LLM function parameter tests
@@ -315,6 +353,16 @@ class TestMiniMaxLLMFunc:
         await mod.minimax_llm_model_func("test")
         assert captured["api_key"] == "sk-secret"
 
+    @pytest.mark.asyncio
+    async def test_missing_minimax_api_key_raises_before_openai_fallback(self):
+        mod, _ = _load_example({"MINIMAX_API_KEY": ""})
+        mod.openai_complete_if_cache = AsyncMock()
+
+        with pytest.raises(ValueError, match="MINIMAX_API_KEY is required"):
+            await mod.minimax_llm_model_func("test")
+
+        mod.openai_complete_if_cache.assert_not_awaited()
+
 
 # ---------------------------------------------------------------------------
 # Integration class tests
@@ -351,3 +399,30 @@ class TestMiniMaxRAGIntegration:
         integration.api_key = ""
         result = await integration.test_connection()
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_connection_succeeds_when_models_endpoint_is_missing(self):
+        mod, _ = _load_example()
+
+        class _Models:
+            async def list(self):
+                raise RuntimeError("models endpoint unavailable")
+
+        class _AsyncOpenAI:
+            def __init__(self, base_url, api_key):
+                self.base_url = base_url
+                self.api_key = api_key
+                self.models = _Models()
+                self.closed = False
+
+            async def close(self):
+                self.closed = True
+
+        openai_mod = types.ModuleType("openai")
+        openai_mod.AsyncOpenAI = _AsyncOpenAI
+
+        with patch.dict(sys.modules, {"openai": openai_mod}):
+            integration = mod.MiniMaxRAGIntegration()
+            result = await integration.test_connection()
+
+        assert result is True
