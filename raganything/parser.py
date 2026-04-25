@@ -33,6 +33,10 @@ import base64
 import subprocess
 import tempfile
 import logging
+import time
+import urllib.parse
+import urllib.request
+import shutil
 from pathlib import Path
 from typing import (
     Dict,
@@ -72,6 +76,90 @@ class Parser:
 
     # Class-level logger
     logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def _is_url(path: str) -> bool:
+        """Check if the path is a URL."""
+        try:
+            result = urllib.parse.urlparse(str(path))
+            return all([result.scheme, result.netloc])
+        except ValueError:
+            return False
+
+    def _download_file(self, url: str) -> Path:
+        """
+        Download a file from a URL to a temporary file.
+        Attempts to preserve the file extension from the URL or Content-Type header.
+        """
+        tmp_path = None
+        response = None
+        try:
+            self.logger.info(f"Downloading file from URL: {url}")
+
+            # Parse URL to get path and extension
+            parsed_url = urllib.parse.urlparse(url)
+            path = Path(parsed_url.path)
+            suffix = path.suffix if path.suffix else ""
+
+            # Create request with User-Agent to avoid 403 Forbidden from some sites
+            req = urllib.request.Request(
+                url,
+                data=None,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
+                },
+            )
+
+            # Open connection to get headers (with an explicit timeout to prevent hanging)
+            response = urllib.request.urlopen(req, timeout=30)
+
+            # If no extension in URL, try Content-Type header
+            if not suffix:
+                content_type = (
+                    response.headers.get("Content-Type", "").split(";")[0].strip()
+                )
+                if content_type:
+                    import mimetypes
+
+                    guessed_ext = mimetypes.guess_extension(content_type)
+                    if guessed_ext:
+                        suffix = guessed_ext
+                        self.logger.info(
+                            f"Inferred file extension '{suffix}' from Content-Type: {content_type}"
+                        )
+
+            # Create a temporary file with the correct extension
+            fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+            os.close(fd)
+            tmp_path = Path(tmp_path)
+
+            # Download the file content
+            with open(tmp_path, "wb") as out_file:
+                shutil.copyfileobj(response, out_file)
+
+            self.logger.info(
+                f"Downloaded to temporary file: {tmp_path} ({tmp_path.stat().st_size} bytes)"
+            )
+            return tmp_path
+
+        except Exception as e:
+            # Clean up temp file if it was created
+            if tmp_path and tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                    self.logger.debug(
+                        f"Cleaned up temporary file after failed download: {tmp_path}"
+                    )
+                except Exception as cleanup_error:
+                    self.logger.warning(
+                        f"Failed to clean up temp file {tmp_path}: {cleanup_error}"
+                    )
+
+            self.logger.error(f"Failed to download file from {url}: {e}")
+            raise RuntimeError(f"Failed to download file from {url}: {e}")
+        finally:
+            if response:
+                response.close()
 
     def __init__(self) -> None:
         """Initialize the base parser."""
@@ -144,7 +232,9 @@ class Parser:
                 commands_to_try = ["libreoffice", "soffice"]
 
                 conversion_successful = False
+                last_cmd = commands_to_try[-1]
                 for cmd in commands_to_try:
+                    is_last = cmd == last_cmd
                     try:
                         convert_cmd = [
                             cmd,
@@ -186,7 +276,17 @@ class Parser:
                                 f"LibreOffice command '{cmd}' failed: {result.stderr}"
                             )
                     except FileNotFoundError:
-                        cls.logger.warning(f"LibreOffice command '{cmd}' not found")
+                        # Only warn when all candidates are exhausted; otherwise
+                        # log at debug level so that the normal fallback from
+                        # 'libreoffice' → 'soffice' does not surface a spurious
+                        # WARNING to users whose system only has 'soffice'.
+                        if is_last:
+                            cls.logger.warning(f"LibreOffice command '{cmd}' not found")
+                        else:
+                            cls.logger.debug(
+                                f"LibreOffice command '{cmd}' not found, "
+                                f"trying next candidate"
+                            )
                     except subprocess.TimeoutExpired:
                         cls.logger.warning(f"LibreOffice command '{cmd}' timed out")
                     except Exception as e:
@@ -622,6 +722,7 @@ class MineruParser(Parser):
         device: Optional[str] = None,
         source: Optional[str] = None,
         vlm_url: Optional[str] = None,
+        timeout: Optional[int] = None,
         **kwargs,
     ) -> None:
         """
@@ -640,6 +741,8 @@ class MineruParser(Parser):
             device: Inference device
             source: Model source
             vlm_url: When the backend is `vlm-http-client`, you need to specify the server_url
+            timeout: Maximum seconds to wait for MinerU to complete. None means no limit.
+                     Raises TimeoutError if the process does not finish within this duration.
             **kwargs: Additional parameters for subprocess (e.g., env)
         """
         cmd = [
@@ -752,6 +855,8 @@ class MineruParser(Parser):
             stderr_thread.start()
 
             # Process output in real time
+            start_time = time.monotonic()
+
             while process.poll() is None:
                 # Check stdout queue
                 try:
@@ -779,9 +884,20 @@ class MineruParser(Parser):
                 except Empty:
                     pass
 
-                # Small delay to prevent busy waiting
-                import time
+                # Enforce timeout — kill the process and raise if exceeded
+                if timeout is not None and (time.monotonic() - start_time) > timeout:
+                    process.kill()
+                    process.wait()
+                    # Give reader threads a moment to drain before raising
+                    stdout_thread.join(timeout=1)
+                    stderr_thread.join(timeout=1)
+                    raise TimeoutError(
+                        f"MinerU did not finish within {timeout}s. "
+                        "This often means a model download is stuck due to network issues. "
+                        "Check your internet connection or pre-download the required models."
+                    )
 
+                # Small delay to prevent busy waiting
                 time.sleep(0.1)
 
             # Process any remaining output after process completion
@@ -1414,7 +1530,7 @@ class DoclingParser(Parser):
         Parse document using Docling based on file extension
 
         Args:
-            file_path: Path to the file to be parsed
+            file_path: Path to the file to be parsed or URL
             method: Parsing method
             output_dir: Output directory path
             lang: Document language for optimization
@@ -1423,27 +1539,45 @@ class DoclingParser(Parser):
         Returns:
             List[Dict[str, Any]]: List of content blocks
         """
-        # Convert to Path object
-        file_path = Path(file_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"File does not exist: {file_path}")
+        downloaded_temp_file = None
 
-        # Get file extension
-        ext = file_path.suffix.lower()
+        try:
+            # Check if input is a URL
+            if self._is_url(file_path):
+                file_path = self._download_file(file_path)
+                downloaded_temp_file = file_path
 
-        # Choose appropriate parser based on file type
-        if ext == ".pdf":
-            return self.parse_pdf(file_path, output_dir, method, lang, **kwargs)
-        elif ext in self.OFFICE_FORMATS:
-            return self.parse_office_doc(file_path, output_dir, lang, **kwargs)
-        elif ext in self.HTML_FORMATS:
-            return self.parse_html(file_path, output_dir, lang, **kwargs)
-        else:
-            raise ValueError(
-                f"Unsupported file format: {ext}. "
-                f"Docling only supports PDF files, Office formats ({', '.join(self.OFFICE_FORMATS)}) "
-                f"and HTML formats ({', '.join(self.HTML_FORMATS)})"
-            )
+            # Convert to Path object
+            file_path = Path(file_path)
+            if not file_path.exists():
+                raise FileNotFoundError(f"File does not exist: {file_path}")
+
+            # Get file extension
+            ext = file_path.suffix.lower()
+
+            # Choose appropriate parser based on file type
+            if ext == ".pdf":
+                return self.parse_pdf(file_path, output_dir, method, lang, **kwargs)
+            elif ext in self.OFFICE_FORMATS:
+                return self.parse_office_doc(file_path, output_dir, lang, **kwargs)
+            elif ext in self.HTML_FORMATS:
+                return self.parse_html(file_path, output_dir, lang, **kwargs)
+            else:
+                raise ValueError(
+                    f"Unsupported file format: {ext}. "
+                    f"Docling only supports PDF files, Office formats ({', '.join(self.OFFICE_FORMATS)}) "
+                    f"and HTML formats ({', '.join(self.HTML_FORMATS)})"
+                )
+        finally:
+            # Clean up temporary file if we downloaded one
+            if downloaded_temp_file and downloaded_temp_file.exists():
+                try:
+                    downloaded_temp_file.unlink()
+                    self.logger.debug(f"Removed temporary file: {downloaded_temp_file}")
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to remove temporary file {downloaded_temp_file}: {e}"
+                    )
 
     def _run_docling_command(
         self,
